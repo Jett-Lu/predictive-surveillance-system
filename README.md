@@ -31,8 +31,54 @@ detections are not treated as isolated frames. Instead, tracking history,
 gesture events, identity agreement, activity sequences, and expression
 smoothing are maintained separately for each person.
 
-<img width="1900" height="942" alt="08_system_architecture" src="https://github.com/user-attachments/assets/91d82ae5-3d6d-4b79-9644-05fed2f44c5d" />
+```text
+                    Camera / Recorded Media
+                              |
+                              v
+                     OpenCV Frame Handling
+                              |
+                              v
+                         YOLOv8 Pose
+                    People + Body Keypoints
+                              |
+                              v
+                          ByteTrack
+                         Tracking IDs
+                              |
+                              v
+                 Independent State per Track
+                              |
+          +-------------------+-------------------+
+          |                   |                   |
+          v                   v                   v
+    GESTURE ANALYSIS     FACE ANALYSIS      ACTIVITY ANALYSIS
+          |                   |                (optional)
+          v                   v                   |
+    Raised Right-Hand   Optional Identity         v
+    Wave Detection      YuNet + SFace       Pose History
+          |                   |              16 Frames
+          v                   v                   |
+    Rolling Window      Facial-Expression        v
+    Wave Counter        Estimation          MLP Classifier
+          |                   |                   |
+          v                   v                   v
+    Rule-Based          Temporal            Smoothed
+    Review Level        Smoothing           Activity Label
+          |                   |                   |
+          +-------------------+-------------------+
+                              |
+                              v
+                  Combine Per-Person Results
+                              |
+                  +-----------+-----------+
+                  |                       |
+                  v                       v
+           Annotated Display       Structured Events
+            / Media Export          / JSONL Logging
+```
 
+Face and activity predictions provide context only.
+Review levels are determined by repeated-wave rules.
 ## Key Features
 
 ### Multi-Person Detection and Tracking
