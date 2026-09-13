@@ -11,10 +11,9 @@ import cv2
 import numpy as np
 import torch
 
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from activity_recognition.labels import ACTIVITY_LABELS, LABEL_TO_INDEX
+from activity_recognition.labels import ACTIVITY_LABELS
 from activity_recognition.live import (
     ActivityModelError,
     ActivityPrediction,
@@ -26,13 +25,9 @@ from detection import MonitoringProcessor
 from events import EventRecorder
 from pose import PoseResult
 
-
 FRAME_SHAPE = (120, 160, 3)
 PERSON_BOX = (20, 10, 140, 115)
-LANDMARKS = {
-    index: (0.25 + index * 0.02, 0.20 + index * 0.025)
-    for index in range(17)
-}
+LANDMARKS = {index: (0.25 + index * 0.02, 0.20 + index * 0.025) for index in range(17)}
 _UNSET = object()
 
 
@@ -57,9 +52,7 @@ def write_mlp_checkpoint(
             "feature_mean": torch.zeros(input_dim),
             "feature_std": torch.ones(input_dim),
             "labels": list(labels),
-            "label_to_index": {
-                label: index for index, label in enumerate(labels)
-            },
+            "label_to_index": {label: index for index, label in enumerate(labels)},
             "frames_per_sample": sequence_length,
         },
         path,
@@ -107,9 +100,7 @@ class RecordingActivityRecognizer:
 class LiveMLPActivityRecognizerTest(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary_directory = tempfile.TemporaryDirectory()
-        self.checkpoint_path = (
-            Path(self.temporary_directory.name) / "activity-mlp.pt"
-        )
+        self.checkpoint_path = Path(self.temporary_directory.name) / "activity-mlp.pt"
 
     def tearDown(self) -> None:
         self.temporary_directory.cleanup()
@@ -162,12 +153,8 @@ class LiveMLPActivityRecognizerTest(unittest.TestCase):
     def test_insufficient_and_missing_pose_history_do_not_infer(self) -> None:
         recognizer = self.recognizer()
 
-        first = recognizer.update(
-            1, LANDMARKS, PERSON_BOX, FRAME_SHAPE, frame_number=0
-        )
-        missing = recognizer.update(
-            1, {}, PERSON_BOX, FRAME_SHAPE, frame_number=1
-        )
+        first = recognizer.update(1, LANDMARKS, PERSON_BOX, FRAME_SHAPE, frame_number=0)
+        missing = recognizer.update(1, {}, PERSON_BOX, FRAME_SHAPE, frame_number=1)
 
         self.assertIsNone(first)
         self.assertIsNone(missing)
@@ -177,9 +164,7 @@ class LiveMLPActivityRecognizerTest(unittest.TestCase):
         recognizer = self.recognizer()
 
         recognizer.update(1, {}, PERSON_BOX, FRAME_SHAPE, frame_number=0)
-        prediction = recognizer.update(
-            1, {}, PERSON_BOX, FRAME_SHAPE, frame_number=1
-        )
+        prediction = recognizer.update(1, {}, PERSON_BOX, FRAME_SHAPE, frame_number=1)
 
         self.assertEqual(prediction, ActivityPrediction("unknown", 0.0))
         self.assertEqual(recognizer.inference_count, 0)
@@ -198,9 +183,7 @@ class LiveMLPActivityRecognizerTest(unittest.TestCase):
         )
 
         recognizer.update(1, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 0)
-        prediction = recognizer.update(
-            1, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 1
-        )
+        prediction = recognizer.update(1, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 1)
 
         self.assertEqual(prediction.label, "unknown")
         self.assertAlmostEqual(prediction.confidence, 0.25)
@@ -210,15 +193,11 @@ class LiveMLPActivityRecognizerTest(unittest.TestCase):
 
         recognizer.update(10, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 0)
         recognizer.update(20, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 0)
-        track_ten = recognizer.update(
-            10, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 1
-        )
+        track_ten = recognizer.update(10, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 1)
 
         self.assertEqual(track_ten.label, "walking")
         self.assertEqual(recognizer.inference_count, 1)
-        track_twenty = recognizer.update(
-            20, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 1
-        )
+        track_twenty = recognizer.update(20, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 1)
         self.assertEqual(track_twenty.label, "walking")
         self.assertEqual(recognizer.inference_count, 2)
 
@@ -238,15 +217,9 @@ class LiveMLPActivityRecognizerTest(unittest.TestCase):
             "_predict_probabilities",
             side_effect=probabilities,
         ):
-            first = recognizer.update(
-                1, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 0
-            )
-            second = recognizer.update(
-                1, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 1
-            )
-            third = recognizer.update(
-                1, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 2
-            )
+            first = recognizer.update(1, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 0)
+            second = recognizer.update(1, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 1)
+            third = recognizer.update(1, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 2)
 
         self.assertEqual(first.label, "walking")
         self.assertEqual(second.label, "unknown")
@@ -266,15 +239,9 @@ class LiveMLPActivityRecognizerTest(unittest.TestCase):
                 np.array([0.1, 0.9, 0.0, 0.0], dtype=np.float32),
             ),
         ) as predict:
-            first = recognizer.update(
-                1, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 0
-            )
-            held = recognizer.update(
-                1, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 1
-            )
-            later = recognizer.update(
-                1, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 3
-            )
+            first = recognizer.update(1, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 0)
+            held = recognizer.update(1, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 1)
+            later = recognizer.update(1, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 3)
 
         self.assertEqual(first.label, "walking")
         self.assertEqual(held.label, "walking")
@@ -285,15 +252,11 @@ class LiveMLPActivityRecognizerTest(unittest.TestCase):
         recognizer = self.recognizer()
         recognizer.update(1, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 0)
         recognizer.remove_track(1)
-        self.assertIsNone(
-            recognizer.update(1, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 1)
-        )
+        self.assertIsNone(recognizer.update(1, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 1))
 
         recognizer.update(2, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 0)
         recognizer.reset()
-        self.assertIsNone(
-            recognizer.update(2, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 1)
-        )
+        self.assertIsNone(recognizer.update(2, LANDMARKS, PERSON_BOX, FRAME_SHAPE, 1))
 
 
 class MonitoringActivityIntegrationTest(unittest.TestCase):
@@ -321,9 +284,7 @@ class MonitoringActivityIntegrationTest(unittest.TestCase):
         return MonitoringProcessor(config, **processor_arguments)
 
     def test_disabled_activity_does_not_load_the_live_model(self) -> None:
-        with patch(
-            "activity_recognition.live.LiveMLPActivityRecognizer"
-        ) as loader:
+        with patch("activity_recognition.live.LiveMLPActivityRecognizer") as loader:
             processor = self.processor([], activity_model="none")
             try:
                 self.assertFalse(processor.activity_enabled)
@@ -377,9 +338,7 @@ class MonitoringActivityIntegrationTest(unittest.TestCase):
 
     def test_overlay_shows_activity_without_changing_review_tier(self) -> None:
         pose = PoseResult(7, PERSON_BOX, LANDMARKS)
-        recognizer = RecordingActivityRecognizer(
-            ActivityPrediction("walking", 0.82)
-        )
+        recognizer = RecordingActivityRecognizer(ActivityPrediction("walking", 0.82))
         processor = self.processor([[pose]], recognizer)
         rendered_text: list[str] = []
         original_put_text = cv2.putText

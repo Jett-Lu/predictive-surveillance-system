@@ -7,7 +7,6 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from events import EventRecorder, TrackSnapshot
@@ -115,9 +114,7 @@ class EventRecorderTest(unittest.TestCase):
 
             events = [json.loads(line) for line in path.read_text().splitlines()]
 
-        activity_events = [
-            event for event in events if event["event_type"] == "activity_changed"
-        ]
+        activity_events = [event for event in events if event["event_type"] == "activity_changed"]
         self.assertEqual(len(activity_events), 2)
         self.assertEqual(activity_events[0]["details"]["from"], None)
         self.assertEqual(activity_events[0]["details"]["to"], "walking")

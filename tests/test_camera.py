@@ -16,9 +16,7 @@ class CaptureClockTest(unittest.TestCase):
     def clock(self, fps: float, positions: list[float]) -> CaptureClock:
         timestamps = iter(positions)
         capture = Mock()
-        capture.get.side_effect = lambda prop: (
-            fps if prop == cv2.CAP_PROP_FPS else next(timestamps)
-        )
+        capture.get.side_effect = lambda prop: fps if prop == cv2.CAP_PROP_FPS else next(timestamps)
         return CaptureClock(capture, recorded=True)
 
     def test_recording_uses_source_timestamps(self) -> None:

@@ -3,12 +3,13 @@
 Samples start at the first observation and use the most recent source frame at
 each grid time. Short offline clips repeat their final frame.
 """
+
 from __future__ import annotations
 
 import math
 
 DEFAULT_SAMPLING_INTERVAL_SECONDS = 0.1
-SAMPLING_VERSION = 1
+SAMPLING_VERSION = 2
 
 
 def validate_sampling_interval(value: float) -> float:

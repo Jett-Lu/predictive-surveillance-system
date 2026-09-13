@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import sys
-
+from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
@@ -15,9 +14,7 @@ from activity_recognition.train import train_all_models
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Train MLP, MobileNetV2, and S3D activity heads."
-    )
+    parser = argparse.ArgumentParser(description="Train MLP, MobileNetV2, and S3D activity heads.")
     parser.add_argument(
         "--manifest",
         type=Path,

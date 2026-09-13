@@ -9,7 +9,6 @@ from unittest.mock import patch
 import numpy as np
 import torch
 
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from activity_recognition.dataset import ActivitySample
@@ -75,25 +74,37 @@ class ActivityModelTest(unittest.TestCase):
             sample = ActivitySample(
                 key="cached",
                 video_path="clip.avi",
-                cache_path="clip.npz",
+                cache_path=str(feature_root / "clip.npz"),
                 label="walking",
                 label_index=0,
                 split="train",
                 hmdb51_class="walk",
             )
-            output_path = feature_root / "cnn" / "cached.npy"
-            output_path.parent.mkdir(parents=True)
-            np.save(output_path, np.zeros(1280, dtype=np.float32))
-
+            np.savez_compressed(
+                sample.cache_path,
+                crops=np.zeros((2, 8, 8, 3), dtype=np.uint8),
+            )
+            tiny_extractor = torch.nn.Sequential(
+                torch.nn.AdaptiveAvgPool2d((1, 1)),
+                torch.nn.Flatten(),
+            )
             with patch(
-                "activity_recognition.train.build_mobilenet_extractor"
-            ) as build_extractor:
+                "activity_recognition.train.build_mobilenet_extractor",
+                return_value=tiny_extractor,
+            ) as first_build:
+                cache_backbone_features([sample], feature_root, "cnn", torch.device("cpu"))
+            first_build.assert_called_once_with()
+            output_path = feature_root / "cnn" / "cached.npy"
+            original_vector = output_path.read_bytes()
+
+            with patch("activity_recognition.train.build_mobilenet_extractor") as build_extractor:
                 cache_backbone_features(
                     [sample],
                     feature_root,
                     "cnn",
                     torch.device("cpu"),
                 )
+            self.assertEqual(output_path.read_bytes(), original_vector)
 
         build_extractor.assert_not_called()
 

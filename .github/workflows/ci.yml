@@ -24,9 +24,12 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
           python -m pip install -r requirements-activity.txt
+          python -m pip install ruff==0.16.7
       - name: Check dependency consistency
         run: python -m pip check
       - name: Compile source
-        run: python -m compileall -q src tests
+        run: python -m compileall -q src scripts tests
+      - name: Lint Python
+        run: python -m ruff check --config pyproject.toml src scripts tests
       - name: Run tests
         run: python -m unittest discover -s tests -v

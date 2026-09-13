@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import os
 import math
+import os
 import time
 
 import cv2
-
 
 DEFAULT_VIDEO_FPS = 24.0
 

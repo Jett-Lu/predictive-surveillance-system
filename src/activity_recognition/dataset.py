@@ -20,13 +20,13 @@ from activity_recognition.labels import (
     LABEL_TO_INDEX,
     normalize_hmdb51_label,
 )
-from activity_recognition.sampling import DEFAULT_SAMPLING_INTERVAL_SECONDS, validate_sampling_interval
-
+from activity_recognition.sampling import (
+    DEFAULT_SAMPLING_INTERVAL_SECONDS,
+    validate_sampling_interval,
+)
 
 MANIFEST_VERSION = 1
-DEFAULT_HMDB51_MIRROR = (
-    "https://huggingface.co/datasets/Sina272/hmdb51-v2/resolve/main"
-)
+DEFAULT_HMDB51_MIRROR = "https://huggingface.co/datasets/Sina272/hmdb51-v2/resolve/main"
 
 
 @dataclass(frozen=True)
@@ -95,16 +95,10 @@ def build_hmdb51_fold(
             if flag == 0:
                 continue
             split = (
-                "test"
-                if flag == 2
-                else "validation"
-                if video_name in validation_names
-                else "train"
+                "test" if flag == 2 else "validation" if video_name in validation_names else "train"
             )
             video_path = _find_video(dataset_root, hmdb_class, video_name)
-            key = sha256(
-                f"{hmdb_class}/{video_name}".encode("utf-8")
-            ).hexdigest()[:16]
+            key = sha256(f"{hmdb_class}/{video_name}".encode("utf-8")).hexdigest()[:16]
             samples.append(
                 ActivitySample(
                     key=key,
@@ -135,26 +129,20 @@ def build_hmdb51_metadata_fold(
     test_rows = _read_metadata_csv(test_metadata_path)
     samples: list[ActivitySample] = []
     for hmdb_class, activity_label in HMDB51_TO_ACTIVITY.items():
-        class_training = [
-            row for row in training_rows if row["label"] == hmdb_class
-        ]
+        class_training = [row for row in training_rows if row["label"] == hmdb_class]
         class_test = [row for row in test_rows if row["label"] == hmdb_class]
         training_names = {row["file_name"] for row in class_training}
         test_names = {row["file_name"] for row in class_test}
         overlap = training_names & test_names
         if overlap:
             duplicate = sorted(overlap)[0]
-            raise ValueError(
-                f"HMDB51 metadata places a video in train and test: {duplicate}"
-            )
+            raise ValueError(f"HMDB51 metadata places a video in train and test: {duplicate}")
         validation_names = deterministic_validation_keys(
             training_names,
             validation_fraction,
             seed,
         )
-        split_rows = [(row, False) for row in class_training] + [
-            (row, True) for row in class_test
-        ]
+        split_rows = [(row, False) for row in class_training] + [(row, True) for row in class_test]
         for row, is_test in split_rows:
             relative_path = _relative_video_path(row["file_name"])
             video_path = dataset_root / relative_path
@@ -354,9 +342,7 @@ def _validate_manifest_samples(samples: list[ActivitySample]) -> None:
         ):
             raise ValueError("Activity manifest sample text fields must be strings")
         if sample.split not in valid_splits:
-            raise ValueError(
-                f"Activity sample {sample.key} has invalid split: {sample.split}"
-            )
+            raise ValueError(f"Activity sample {sample.key} has invalid split: {sample.split}")
         expected_label = normalize_hmdb51_label(sample.hmdb51_class)
         if sample.label != expected_label:
             raise ValueError(
@@ -365,8 +351,7 @@ def _validate_manifest_samples(samples: list[ActivitySample]) -> None:
             )
         if LABEL_TO_INDEX[sample.label] != sample.label_index:
             raise ValueError(
-                f"Activity sample {sample.key} has invalid label index: "
-                f"{sample.label_index}"
+                f"Activity sample {sample.key} has invalid label index: {sample.label_index}"
             )
         video_path = str(Path(sample.video_path).resolve()).casefold()
         cache_path = str(Path(sample.cache_path).resolve()).casefold()

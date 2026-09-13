@@ -9,7 +9,6 @@ from unittest.mock import patch
 import cv2
 import numpy as np
 
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from media_export import annotated_output_path, discover_media_files, export_media
@@ -80,7 +79,9 @@ class MediaExportHelpersTest(unittest.TestCase):
             ):
                 writer = cv2.VideoWriter(
                     str(inputs / f"clip.{extension}"),
-                    cv2.VideoWriter_fourcc(*codec), 10.0, (64, 48),
+                    cv2.VideoWriter_fourcc(*codec),
+                    10.0,
+                    (64, 48),
                 )
                 try:
                     self.assertTrue(writer.isOpened())

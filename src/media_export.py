@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-import os
 
 import cv2
 
-from config import AppConfig
 from camera import CaptureClock
+from config import AppConfig
 from logging_setup import get_logger
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_INPUT_DIR = PROJECT_ROOT / "input"
@@ -50,11 +49,7 @@ def discover_media_files(input_path: Path) -> list[Path]:
 
 def annotated_output_path(input_path: Path, output_dir: Path) -> Path:
     """Build a clear output filename for a photo or video."""
-    suffix = (
-        input_path.suffix.lower()
-        if input_path.suffix.lower() in IMAGE_EXTENSIONS
-        else ".mp4"
-    )
+    suffix = input_path.suffix.lower() if input_path.suffix.lower() in IMAGE_EXTENSIONS else ".mp4"
     name = input_path.stem if input_path.suffix.lower() in IMAGE_EXTENSIONS else input_path.name
     return output_dir / f"{name}_annotated{suffix}"
 

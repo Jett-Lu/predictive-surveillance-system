@@ -445,6 +445,10 @@ Supported video formats include:
 
 ## Enabling Live Activity Recognition
 
+Newly prepared activity caches and checkpoints use a shared source-time sampling
+interval. See [activity preprocessing and checkpoint compatibility](docs/activity_preprocessing.md)
+for rebuild commands and legacy checkpoint behavior.
+
 Train the activity models first:
 
 ```powershell
@@ -572,6 +576,13 @@ Run all tests:
 
 The test suite covers temporal state, model loading, preprocessing, media export,
 and event reporting. Run it in your installed environment to verify compatibility.
+
+CI also checks Python lint rules configured in `pyproject.toml`. To run them locally:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install ruff==0.16.7
+.\.venv\Scripts\python.exe -m ruff check --config pyproject.toml src scripts tests
+```
 
 Install the repository as an editable Python project:
 

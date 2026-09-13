@@ -16,7 +16,6 @@ from activity_recognition.labels import ACTIVITY_LABELS, LABEL_TO_INDEX
 from activity_recognition.preprocessing import KEYPOINT_COUNT, normalize_pose
 from activity_recognition.sampling import observation_gap_limit, validate_sampling_interval
 
-
 UNKNOWN_ACTIVITY = "unknown"
 
 
@@ -74,9 +73,7 @@ class LiveMLPActivityRecognizer:
 
         checkpoint_path = Path(checkpoint_path)
         if not checkpoint_path.is_file():
-            raise ActivityModelError(
-                f"Activity MLP checkpoint not found: {checkpoint_path}"
-            )
+            raise ActivityModelError(f"Activity MLP checkpoint not found: {checkpoint_path}")
 
         try:
             import torch
@@ -99,12 +96,10 @@ class LiveMLPActivityRecognizer:
             )
             self._model.load_state_dict(checkpoint["state_dict"])
             if any(
-                not bool(torch.isfinite(parameter).all())
-                for parameter in self._model.parameters()
+                not bool(torch.isfinite(parameter).all()) for parameter in self._model.parameters()
             ):
                 raise ActivityModelError(
-                    f"Activity checkpoint contains non-finite weights: "
-                    f"{checkpoint_path}"
+                    f"Activity checkpoint contains non-finite weights: {checkpoint_path}"
                 )
             self._model.eval()
             self._feature_mean = checkpoint["feature_mean"].detach().cpu().float()
@@ -171,7 +166,8 @@ class LiveMLPActivityRecognizer:
                 sampled_pose = (
                     state.last_observation_pose
                     if state.next_sample_timestamp < observation_time - 1e-8
-                    and state.last_observation_pose is not None else pose_features
+                    and state.last_observation_pose is not None
+                    else pose_features
                 )
                 state.pose_history.append(sampled_pose)
                 state.valid_history.append(bool(np.any(sampled_pose[:, 2] > 0)))
@@ -252,9 +248,7 @@ class LiveMLPActivityRecognizer:
             probabilities = self._torch.softmax(logits, dim=1)
         values = probabilities.squeeze(0).cpu().numpy()
         if values.shape != (len(ACTIVITY_LABELS),) or not np.isfinite(values).all():
-            raise ActivityModelError(
-                "Activity MLP produced invalid class probabilities"
-            )
+            raise ActivityModelError("Activity MLP produced invalid class probabilities")
         return values
 
     def _validate_checkpoint(
@@ -295,7 +289,8 @@ class LiveMLPActivityRecognizer:
                 "Legacy activity checkpoint has no source-time sampling metadata; "
                 "using adjacent observations. Retrain with new activity caches for "
                 "consistent offline/live timing.",
-                UserWarning, stacklevel=2,
+                UserWarning,
+                stacklevel=2,
             )
         expected_input_dim = self.sequence_length * KEYPOINT_COUNT * 3
         if checkpoint.get("input_dim") != expected_input_dim:
@@ -313,12 +308,11 @@ class LiveMLPActivityRecognizer:
             raise ActivityModelError(
                 f"Activity checkpoint is missing feature scaling: {checkpoint_path}"
             )
-        if tuple(mean.shape) != (expected_input_dim,) or tuple(
-            standard_deviation.shape
-        ) != (expected_input_dim,):
+        if tuple(mean.shape) != (expected_input_dim,) or tuple(standard_deviation.shape) != (
+            expected_input_dim,
+        ):
             raise ActivityModelError(
-                f"Activity checkpoint feature scaling has an invalid shape: "
-                f"{checkpoint_path}"
+                f"Activity checkpoint feature scaling has an invalid shape: {checkpoint_path}"
             )
         if not bool(torch.isfinite(mean).all()) or not bool(
             torch.isfinite(standard_deviation).all()
@@ -328,6 +322,5 @@ class LiveMLPActivityRecognizer:
             )
         if bool((standard_deviation <= 0).any()):
             raise ActivityModelError(
-                f"Activity checkpoint feature standard deviation is invalid: "
-                f"{checkpoint_path}"
+                f"Activity checkpoint feature standard deviation is invalid: {checkpoint_path}"
             )

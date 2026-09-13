@@ -2,19 +2,19 @@
 
 from __future__ import annotations
 
+import os
+import time
 from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Sequence
 from urllib.parse import urlsplit, urlunsplit
-import os
-import time
 
 import cv2
 
 from camera import CaptureClock, open_capture
-from config import AppConfig, DEFAULT_CONFIG
+from config import DEFAULT_CONFIG, AppConfig
 from events import EventRecorder, TrackSnapshot, session_event_path
 from identity import IdentityConsensus, KnownIdentity, OpenCVFaceIdentifier, offset_box
 from logging_setup import configure_logging, get_logger
@@ -26,7 +26,6 @@ from model_manager import (
     identity_model_specs,
 )
 from review import HIGH_COLOR, ReviewState
-
 
 TMP_DIR = DEFAULT_CONFIG.project_root / ".tmp"
 (TMP_DIR / "ultralytics").mkdir(parents=True, exist_ok=True)
@@ -95,9 +94,7 @@ class StageTimer:
         for stage, average_ms, calls in rows:
             logger.info("Timing %-18s %6.1f ms (%s calls)", stage, average_ms, calls)
 
-        per_frame_total_ms = sum(
-            total * 1000 / self.print_every for total in self._totals.values()
-        )
+        per_frame_total_ms = sum(total * 1000 / self.print_every for total in self._totals.values())
         if per_frame_total_ms > 0:
             logger.info(
                 "Timing total %.1f ms/frame (~%.1f FPS upper bound)",
@@ -130,9 +127,7 @@ def _track_key(
 
 def _parse_demo_high_review_names(raw_names: str) -> set[str]:
     return {
-        name.strip().casefold()
-        for name in raw_names.replace(";", ",").split(",")
-        if name.strip()
+        name.strip().casefold() for name in raw_names.replace(";", ",").split(",") if name.strip()
     }
 
 
@@ -194,9 +189,7 @@ class MonitoringProcessor:
                 config=self.config,
             )
         )
-        self.activity_recognizer = self._prepare_activity_recognizer(
-            activity_recognizer
-        )
+        self.activity_recognizer = self._prepare_activity_recognizer(activity_recognizer)
         self.emotion_analyzer = self._prepare_emotion_analyzer(emotion_analyzer)
         if self.emotion_analyzer is not None:
             from emotion import EmotionSmoother
@@ -229,9 +222,7 @@ class MonitoringProcessor:
         self.frame_count = 0
         self._timestamp_origin: float | None = None
         self.last_snapshots: list[TrackSnapshot] = []
-        self.timer = (
-            StageTimer(print_every=30) if self.config.debug_timing else NoOpTimer()
-        )
+        self.timer = StageTimer(print_every=30) if self.config.debug_timing else NoOpTimer()
         self._fps = 0.0
         self._last_frame_clock: float | None = None
 
@@ -277,10 +268,7 @@ class MonitoringProcessor:
             runtime.last_seen_frame = self.frame_count
 
             activity_prediction = None
-            if (
-                self.activity_recognizer is not None
-                and pose_result.track_id is not None
-            ):
+            if self.activity_recognizer is not None and pose_result.track_id is not None:
                 with self.timer("activity"):
                     activity_prediction = self.activity_recognizer.update(
                         track_key,
@@ -311,9 +299,7 @@ class MonitoringProcessor:
                     else None
                 )
                 context_activated = runtime.review_monitor.observe_expression(
-                    runtime.cached_emotion.label
-                    if runtime.cached_emotion is not None
-                    else None,
+                    runtime.cached_emotion.label if runtime.cached_emotion is not None else None,
                     runtime.cached_emotion.confidence
                     if runtime.cached_emotion is not None
                     else None,
@@ -356,16 +342,8 @@ class MonitoringProcessor:
                     review_state,
                     wave_state.wave_detected,
                     context_activated,
-                    (
-                        None
-                        if activity_prediction is None
-                        else activity_prediction.label
-                    ),
-                    (
-                        None
-                        if activity_prediction is None
-                        else activity_prediction.confidence
-                    ),
+                    (None if activity_prediction is None else activity_prediction.label),
+                    (None if activity_prediction is None else activity_prediction.confidence),
                 )
                 _draw_identity_overlay(
                     annotated,
@@ -386,13 +364,9 @@ class MonitoringProcessor:
                 expression_label=review_state.concern_label,
                 expression_context_strength=review_state.concern_strength,
                 demo_override=demo_override,
-                activity_label=(
-                    None if activity_prediction is None else activity_prediction.label
-                ),
+                activity_label=(None if activity_prediction is None else activity_prediction.label),
                 activity_confidence=(
-                    None
-                    if activity_prediction is None
-                    else activity_prediction.confidence
+                    None if activity_prediction is None else activity_prediction.confidence
                 ),
             )
             snapshots.append(snapshot)
@@ -442,13 +416,10 @@ class MonitoringProcessor:
     def close(self) -> None:
         try:
             if self.activity_recognizer is not None:
-                average_latency = (
-                    self.activity_recognizer.average_inference_latency_ms
-                )
+                average_latency = self.activity_recognizer.average_inference_latency_ms
                 if average_latency is not None:
                     logger.info(
-                        "Activity MLP incremental latency %.3f ms "
-                        "(%s inferences; excludes YOLO)",
+                        "Activity MLP incremental latency %.3f ms (%s inferences; excludes YOLO)",
                         average_latency,
                         self.activity_recognizer.inference_count,
                     )
@@ -498,9 +469,7 @@ class MonitoringProcessor:
             logger.info("Activity recognition OFF")
             return None
         if self.config.activity_model != "mlp":
-            raise ValueError(
-                f"Unsupported activity model: {self.config.activity_model}"
-            )
+            raise ValueError(f"Unsupported activity model: {self.config.activity_model}")
 
         from activity_recognition.live import LiveMLPActivityRecognizer
 
@@ -639,10 +608,7 @@ def _resolve_identity_overlay(
         label = _label_with_emotion("Person", None, runtime.cached_emotion)
         return IdentityOverlay("Person", fallback_box, label)
 
-    due = (
-        runtime.cached_face_box is None
-        or frame_number % identity_interval_frames == 0
-    )
+    due = runtime.cached_face_box is None or frame_number % identity_interval_frames == 0
     if due:
         x1, y1, x2, y2 = person_box
         cropped_img = frame[y1:y2, x1:x2]
@@ -735,9 +701,7 @@ def _draw_review_overlay(
         f"waves:{review_state.recent_wave_count} | context:{review_state.concern_strength:.0%}",
     )
     if review_state.concern_expression_active:
-        status_lines.append(
-            f"{review_state.concern_label} {review_state.concern_strength:.0%}"
-        )
+        status_lines.append(f"{review_state.concern_label} {review_state.concern_strength:.0%}")
     _draw_status_panel(
         frame,
         person_box,

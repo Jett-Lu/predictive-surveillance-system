@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from collections import deque
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-import json
 
 from logging_setup import get_logger
-
 
 logger = get_logger("events")
 
@@ -119,10 +118,7 @@ class EventRecorder:
                     {"wave_count": snapshot.wave_count},
                     f"Track {snapshot.track_key}: wave {snapshot.wave_count}",
                 )
-            if (
-                snapshot.identity_confirmed
-                and snapshot.identity_name != previous.identity_name
-            ):
+            if snapshot.identity_confirmed and snapshot.identity_name != previous.identity_name:
                 self._emit(
                     "identity_confirmed",
                     snapshot,

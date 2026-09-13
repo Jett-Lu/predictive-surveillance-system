@@ -5,9 +5,9 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 import numpy as np
-
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -125,10 +125,11 @@ class ActivityPreprocessingTest(unittest.TestCase):
     def test_existing_sample_cache_does_not_load_pose_model(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             cache_path = Path(directory) / "cached.npz"
-            cache_path.touch()
+            source_path = Path(directory) / "clip.avi"
+            source_path.write_bytes(b"source identity for mocked decoder")
             sample = ActivitySample(
                 key="cached",
-                video_path="clip.avi",
+                video_path=str(source_path),
                 cache_path=str(cache_path),
                 label="walking",
                 label_index=0,
@@ -136,7 +137,22 @@ class ActivityPreprocessingTest(unittest.TestCase):
                 hmdb51_class="walk",
             )
 
-            counts = cache_activity_samples([sample])
+            analyzer = Mock()
+            analyzer.analyze.return_value = []
+            frames = [np.zeros((8, 8, 3), dtype=np.uint8)] * 2
+            with patch(
+                "activity_recognition.preprocessing.sample_video_frames",
+                return_value=frames,
+            ):
+                initial_counts = cache_activity_samples(
+                    [sample], frames_per_sample=2, pose_analyzer=analyzer
+                )
+            self.assertEqual(initial_counts, {"completed": 1, "skipped": 0, "failed": 0})
+            original_cache = cache_path.read_bytes()
+            with patch("pose.PoseAnalyzer") as build_analyzer:
+                counts = cache_activity_samples([sample], frames_per_sample=2)
+            build_analyzer.assert_not_called()
+            self.assertEqual(cache_path.read_bytes(), original_cache)
 
         self.assertEqual(counts, {"completed": 0, "skipped": 1, "failed": 0})
 

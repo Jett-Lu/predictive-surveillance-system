@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import platform
 from collections import Counter
 from datetime import datetime, timezone
@@ -34,7 +33,7 @@ from activity_recognition.models import (
     build_mobilenet_extractor,
     build_s3d_extractor,
 )
-from activity_recognition.preprocessing import image_tensor, video_tensor, validate_cached_samples
+from activity_recognition.preprocessing import image_tensor, validate_cached_samples, video_tensor
 from activity_recognition.train import (
     cache_backbone_features,
     load_model_features,
@@ -79,15 +78,13 @@ def evaluate_all_models(
         )
         validate_checkpoint_labels(checkpoint, checkpoint_path)
         if checkpoint.get("model_name") != model_name:
-            raise ValueError(
-                f"Checkpoint model name does not match filename: {checkpoint_path}"
-            )
+            raise ValueError(f"Checkpoint model name does not match filename: {checkpoint_path}")
         if checkpoint.get("frames_per_sample") != metadata.get("frames_per_sample"):
-            raise ValueError(
-                f"Checkpoint frame count does not match manifest: {checkpoint_path}"
-            )
+            raise ValueError(f"Checkpoint frame count does not match manifest: {checkpoint_path}")
         if checkpoint.get("sampling_interval_seconds") != metadata.get("sampling_interval_seconds"):
-            raise ValueError(f"Checkpoint sampling interval does not match manifest: {checkpoint_path}")
+            raise ValueError(
+                f"Checkpoint sampling interval does not match manifest: {checkpoint_path}"
+            )
         if model_name in {"cnn", "advanced"}:
             cache_backbone_features(
                 test_samples,
@@ -114,9 +111,7 @@ def evaluate_all_models(
         matrix = confusion_matrix(expected, predicted, len(ACTIVITY_LABELS))
         metrics = classification_metrics(matrix)
         metrics["averaging"] = "macro"
-        metrics["training_time_seconds"] = float(
-            checkpoint["training_time_seconds"]
-        )
+        metrics["training_time_seconds"] = float(checkpoint["training_time_seconds"])
         metrics["inference_latency_ms"] = measure_inference_latency(
             model_name,
             model,
@@ -187,6 +182,7 @@ def evaluate_all_models(
             "label_to_index": dict(LABEL_TO_INDEX),
             "seed": seed,
             "frames_per_sample": metadata.get("frames_per_sample"),
+            "sampling_interval_seconds": metadata.get("sampling_interval_seconds"),
             "split_counts": dict(Counter(sample.split for sample in samples)),
             "manifest_sha256": file_sha256(manifest_path),
             "checkpoint_sha256": checkpoint_hashes,
@@ -200,11 +196,15 @@ def evaluate_all_models(
                 "advanced": "Torchvision S3D Kinetics-400 V1",
             },
             "preprocessing": {
-                "sampled_frames": "uniform source-order sampling",
+                "sampled_frames": (
+                    "fixed source-time grid; hold last observed frame; repeat final frame for short clips"
+                    if metadata.get("sampling_interval_seconds") is not None
+                    else "uniform source-order sampling (legacy cache)"
+                ),
                 "person_crop": "largest YOLO Pose detection with 8% padding",
-                "mlp": "16x17 bounding-box-relative x/y/visibility",
-                "cnn": "mean of 16 frozen MobileNetV2 frame features",
-                "advanced": "one 16-frame frozen S3D clip feature",
+                "mlp": f"{metadata['frames_per_sample']}x17 bounding-box-relative x/y/visibility",
+                "cnn": f"mean of {metadata['frames_per_sample']} frozen MobileNetV2 frame features",
+                "advanced": f"one {metadata['frames_per_sample']}-frame frozen S3D clip feature",
             },
             "latency": {
                 "unit": "milliseconds per video sample",
@@ -239,8 +239,7 @@ def validate_checkpoint_labels(checkpoint: dict, checkpoint_path: Path) -> None:
     label_to_index = checkpoint.get("label_to_index")
     if labels != ACTIVITY_LABELS or label_to_index != LABEL_TO_INDEX:
         raise ValueError(
-            f"Checkpoint label metadata does not match canonical labels: "
-            f"{checkpoint_path}"
+            f"Checkpoint label metadata does not match canonical labels: {checkpoint_path}"
         )
 
 

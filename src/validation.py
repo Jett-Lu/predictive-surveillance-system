@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
+import json
+import os
 from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from time import perf_counter
 from typing import Any
-import json
-import os
 
 import cv2
 
-from config import AppConfig
 from camera import CaptureClock
+from config import AppConfig
 from detection import MonitoringProcessor
 
 
@@ -79,9 +79,7 @@ def run_validation(
     if report_path is not None:
         report_path = report_path.resolve()
         report_path.parent.mkdir(parents=True, exist_ok=True)
-        temporary_path = report_path.with_name(
-            f"{report_path.name}.tmp-{os.getpid()}"
-        )
+        temporary_path = report_path.with_name(f"{report_path.name}.tmp-{os.getpid()}")
         try:
             temporary_path.write_text(
                 json.dumps(
@@ -111,9 +109,7 @@ def evaluate_metrics(
 
     minimum_people = int(case.get("min_people", 0))
     if metrics.max_people < minimum_people:
-        failures.append(
-            f"expected at least {minimum_people} people, observed {metrics.max_people}"
-        )
+        failures.append(f"expected at least {minimum_people} people, observed {metrics.max_people}")
 
     minimum_fps = float(case.get("min_processing_fps", 0.0))
     if metrics.processing_fps < minimum_fps:

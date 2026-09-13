@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import math
 import json
+import math
 import os
 import random
-from importlib.metadata import version
 from copy import deepcopy
 from dataclasses import dataclass
+from importlib.metadata import version
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Iterable
@@ -36,12 +36,16 @@ from activity_recognition.models import (
     build_s3d_extractor,
 )
 from activity_recognition.preprocessing import (
+    IMAGENET_MEAN,
+    IMAGENET_STD,
+    KEYPOINT_COUNT,
+    S3D_MEAN,
+    S3D_STD,
+    file_fingerprint,
     image_tensor,
     load_cached_arrays,
-    video_tensor,
-    file_fingerprint,
     validate_cached_samples,
-    IMAGENET_MEAN, IMAGENET_STD, S3D_MEAN, S3D_STD, KEYPOINT_COUNT,
+    video_tensor,
 )
 
 
@@ -87,24 +91,21 @@ def cache_backbone_features(
     model_feature_root = feature_root / model_name
     model_feature_root.mkdir(parents=True, exist_ok=True)
     sample_list = list(samples)
-    provenance = {
-        sample.key: _feature_provenance(sample, model_name) for sample in sample_list
-    }
+    provenance = {sample.key: _feature_provenance(sample, model_name) for sample in sample_list}
     pending_samples = [
         sample
         for sample in sample_list
         if overwrite
-        or not _valid_feature_cache(model_feature_root / f"{sample.key}.npy",
-                                    provenance[sample.key])
+        or not _valid_feature_cache(
+            model_feature_root / f"{sample.key}.npy", provenance[sample.key]
+        )
     ]
     if not pending_samples:
         return
 
-    extractor = (
-        build_mobilenet_extractor()
-        if model_name == "cnn"
-        else build_s3d_extractor()
-    ).to(device)
+    extractor = (build_mobilenet_extractor() if model_name == "cnn" else build_s3d_extractor()).to(
+        device
+    )
     with torch.inference_mode():
         for position, sample in enumerate(pending_samples, start=1):
             output_path = model_feature_root / f"{sample.key}.npy"
@@ -131,16 +132,16 @@ def cache_backbone_features(
             metadata["vector_shape"] = list(vector.shape)
             temporary_sidecar.write_text(json.dumps(metadata, sort_keys=True), encoding="utf-8")
             os.replace(temporary_sidecar, sidecar_path)
-            print(
-                f"[{position}/{len(pending_samples)}] cached {model_name} features"
-            )
+            print(f"[{position}/{len(pending_samples)}] cached {model_name} features")
 
 
 def _feature_provenance(sample: ActivitySample, model_name: str) -> dict[str, Any]:
     return {
-        "version": 1, "source_sha256": file_fingerprint(Path(sample.cache_path)),
+        "version": 1,
+        "source_sha256": file_fingerprint(Path(sample.cache_path)),
         "extractor": "mobilenet_v2.IMAGENET1K_V2" if model_name == "cnn" else "s3d.KINETICS400_V1",
-        "torchvision_version": version("torchvision"), "torch_version": str(torch.__version__),
+        "torchvision_version": version("torchvision"),
+        "torch_version": str(torch.__version__),
         "preprocessing": "rgb-uint8-normalize-v1",
         "mean": list(IMAGENET_MEAN if model_name == "cnn" else S3D_MEAN),
         "std": list(IMAGENET_STD if model_name == "cnn" else S3D_STD),
@@ -151,14 +152,20 @@ def _feature_provenance(sample: ActivitySample, model_name: str) -> dict[str, An
 def _valid_feature_cache(path: Path, expected: dict[str, Any]) -> bool:
     try:
         metadata = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+        if not isinstance(metadata, dict):
+            return False
         if any(metadata.get(key) != value for key, value in expected.items()):
             return False
         if metadata.get("vector_sha256") != file_fingerprint(path):
             return False
         vector = np.load(path, allow_pickle=False)
-        return (vector.ndim == 1 and vector.size > 0 and vector.dtype == np.float32
-                and list(vector.shape) == metadata.get("vector_shape")
-                and bool(np.isfinite(vector).all()))
+        return (
+            vector.ndim == 1
+            and vector.size > 0
+            and vector.dtype == np.float32
+            and list(vector.shape) == metadata.get("vector_shape")
+            and bool(np.isfinite(vector).all())
+        )
     except (OSError, ValueError, TypeError, EOFError):
         return False
 
@@ -173,9 +180,7 @@ def load_model_features(
     if model_name == "mlp":
         poses, labels = load_cached_arrays(samples, "pose")
         return poses.reshape(len(poses), -1).astype(np.float32), labels
-    feature_paths = [
-        feature_root / model_name / f"{sample.key}.npy" for sample in samples
-    ]
+    feature_paths = [feature_root / model_name / f"{sample.key}.npy" for sample in samples]
     missing_paths = [path for path in feature_paths if not path.is_file()]
     if missing_paths:
         raise FileNotFoundError(
@@ -202,11 +207,12 @@ def train_all_models(
     overwrite_features: bool = False,
 ) -> dict[str, TrainingResult]:
     metadata, samples = load_manifest(manifest_path)
-    validate_cached_samples(samples, metadata)
     train_samples = samples_for_split(samples, "train")
     validation_samples = samples_for_split(samples, "validation")
     if not train_samples or not validation_samples:
         raise ValueError("Manifest must contain train and validation samples")
+    development_samples = [*train_samples, *validation_samples]
+    validate_cached_samples(development_samples, metadata)
     device = resolve_device(device_name)
     set_reproducible_seed(seed)
     model_root.mkdir(parents=True, exist_ok=True)
@@ -214,7 +220,7 @@ def train_all_models(
 
     for model_name in ("cnn", "advanced"):
         cache_backbone_features(
-            samples,
+            development_samples,
             feature_root,
             model_name,
             device,
@@ -286,15 +292,13 @@ def train_classifier(
     frame_count = (manifest_metadata or {}).get("frames_per_sample", 16)
     if model_name == "mlp" and training_features.shape[1] != frame_count * KEYPOINT_COUNT * 3:
         raise ValueError("MLP feature width does not match manifest frame count")
-    if len(training_features) != len(training_labels) or len(
-        validation_features
-    ) != len(validation_labels):
+    if len(training_features) != len(training_labels) or len(validation_features) != len(
+        validation_labels
+    ):
         raise ValueError("Feature and label counts must match")
     if not len(training_features) or not len(validation_features):
         raise ValueError("Training and validation arrays must not be empty")
-    if not np.isfinite(training_features).all() or not np.isfinite(
-        validation_features
-    ).all():
+    if not np.isfinite(training_features).all() or not np.isfinite(validation_features).all():
         raise ValueError("Training and validation features must be finite")
     class_count = len(ACTIVITY_LABELS)
     if (
@@ -353,19 +357,14 @@ def train_classifier(
         model.eval()
         with torch.inference_mode():
             validation_logits = model(validation_x)
-            validation_loss = float(
-                loss_function(validation_logits, validation_y).item()
-            )
+            validation_loss = float(loss_function(validation_logits, validation_y).item())
             validation_predictions = validation_logits.argmax(dim=1).cpu().numpy()
         matrix = confusion_matrix(validation_labels, validation_predictions)
         macro_f1 = classification_metrics(matrix)["macro_f1"]
         history["train_loss"].append(running_loss / max(1, sample_count))
         history["validation_loss"].append(validation_loss)
         history["validation_macro_f1"].append(macro_f1)
-        print(
-            f"{model_name} epoch {epoch + 1}: "
-            f"loss={validation_loss:.4f} macro_f1={macro_f1:.4f}"
-        )
+        print(f"{model_name} epoch {epoch + 1}: loss={validation_loss:.4f} macro_f1={macro_f1:.4f}")
 
         improved = macro_f1 > best_score or (
             np.isclose(macro_f1, best_score) and validation_loss < best_loss
@@ -397,11 +396,12 @@ def train_classifier(
             "seed": seed,
             "labels": list(ACTIVITY_LABELS),
             "label_to_index": dict(LABEL_TO_INDEX),
-            "frames_per_sample": int(
-                (manifest_metadata or {}).get("frames_per_sample", 16)
+            "frames_per_sample": int((manifest_metadata or {}).get("frames_per_sample", 16)),
+            **(
+                {"sampling_interval_seconds": manifest_metadata["sampling_interval_seconds"]}
+                if manifest_metadata and "sampling_interval_seconds" in manifest_metadata
+                else {}
             ),
-            **({"sampling_interval_seconds": manifest_metadata["sampling_interval_seconds"]}
-               if manifest_metadata and "sampling_interval_seconds" in manifest_metadata else {}),
         },
         checkpoint_path,
     )

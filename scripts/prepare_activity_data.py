@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import sys
-
+from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
@@ -21,9 +20,7 @@ from activity_recognition.sampling import DEFAULT_SAMPLING_INTERVAL_SECONDS
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Prepare four-class HMDB51 activity caches."
-    )
+    parser = argparse.ArgumentParser(description="Prepare four-class HMDB51 activity caches.")
     parser.add_argument("--dataset-root", type=Path, required=True)
     parser.add_argument("--annotations-root", type=Path)
     parser.add_argument("--metadata-train", type=Path)
@@ -38,8 +35,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--validation-fraction", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=2026)
     parser.add_argument("--frames", type=int, default=16)
-    parser.add_argument("--sampling-interval-seconds", type=float,
-                        default=DEFAULT_SAMPLING_INTERVAL_SECONDS)
+    parser.add_argument(
+        "--sampling-interval-seconds", type=float, default=DEFAULT_SAMPLING_INTERVAL_SECONDS
+    )
     parser.add_argument("--overwrite", action="store_true")
     return parser.parse_args()
 
@@ -73,9 +71,7 @@ def main() -> None:
         annotations_root = args.metadata_train.parent
     else:
         if args.annotations_root is None:
-            raise SystemExit(
-                "Provide --annotations-root or both metadata CSV arguments"
-            )
+            raise SystemExit("Provide --annotations-root or both metadata CSV arguments")
         samples = build_hmdb51_fold(
             args.dataset_root,
             args.annotations_root,

@@ -2,21 +2,24 @@
 
 from __future__ import annotations
 
-import os
 import json
+import os
 from hashlib import sha256
-from zipfile import BadZipFile
 from pathlib import Path
 from time import perf_counter
 from typing import TYPE_CHECKING, Any, Iterable
+from zipfile import BadZipFile
 
 import cv2
 import numpy as np
 
 from activity_recognition.dataset import ActivitySample
 from activity_recognition.sampling import (
-    DEFAULT_SAMPLING_INTERVAL_SECONDS, SAMPLING_VERSION, validate_sampling_interval,
+    DEFAULT_SAMPLING_INTERVAL_SECONDS,
+    SAMPLING_VERSION,
+    validate_sampling_interval,
 )
+from camera import CaptureClock
 
 if TYPE_CHECKING:
     import torch
@@ -92,23 +95,26 @@ def sample_video_frames(
     interval = validate_sampling_interval(sampling_interval_seconds)
     capture = cv2.VideoCapture(str(video_path))
     if not capture.isOpened():
+        capture.release()
         raise RuntimeError(f"OpenCV could not open video: {video_path}")
     frames: list[np.ndarray] = []
     try:
-        fps = capture.get(cv2.CAP_PROP_FPS)
-        if not np.isfinite(fps) or fps <= 0:
-            raise ValueError(f"Video has no valid source frame rate: {video_path}")
-        indexes = np.floor(np.arange(frame_count) * interval * fps + 1e-8).astype(int)
-        source_index = 0
+        clock = CaptureClock(capture, recorded=True)
+        origin = None
         last_frame = None
         while len(frames) < frame_count:
             ok, frame = capture.read()
             if not ok:
                 break
-            last_frame = frame
-            while len(frames) < frame_count and indexes[len(frames)] == source_index:
+            timestamp = clock.timestamp()
+            if origin is None:
+                origin = timestamp
+            elapsed = timestamp - origin
+            while len(frames) < frame_count and len(frames) * interval < elapsed - 1e-8:
+                frames.append(last_frame if last_frame is not None else frame)
+            if len(frames) < frame_count and len(frames) * interval <= elapsed + 1e-8:
                 frames.append(frame)
-            source_index += 1
+            last_frame = frame
         if last_frame is not None:
             frames.extend([last_frame] * (frame_count - len(frames)))
     finally:
@@ -129,12 +135,16 @@ def file_fingerprint(path: Path) -> str:
 
 def _sample_metadata(sample: ActivitySample, frames: int, interval: float) -> dict[str, Any]:
     return {
-        "version": 2, "source": str(Path(sample.video_path).resolve()),
+        "version": 2,
+        "source": str(Path(sample.video_path).resolve()),
         "source_sha256": file_fingerprint(Path(sample.video_path)),
-        "frames_per_sample": frames, "sampling_interval_seconds": interval,
-        "sampling_version": SAMPLING_VERSION, "crop_size": DEFAULT_CROP_SIZE,
-        "pose_preprocessing": "yolo11n-pose-box-relative-v1",
-        "label": sample.label_index, "split": sample.split,
+        "frames_per_sample": frames,
+        "sampling_interval_seconds": interval,
+        "sampling_version": SAMPLING_VERSION,
+        "crop_size": DEFAULT_CROP_SIZE,
+        "pose_preprocessing": "coco17-box-relative-v1",
+        "label": sample.label_index,
+        "split": sample.split,
     }
 
 
@@ -164,21 +174,27 @@ def validate_cached_samples(samples: Iterable[ActivitySample], metadata: dict[st
     for sample in samples:
         try:
             with np.load(sample.cache_path, allow_pickle=False) as payload:
-                if payload["pose"].shape != (count, KEYPOINT_COUNT, 3) or payload["crops"].shape != (
-                    count, DEFAULT_CROP_SIZE, DEFAULT_CROP_SIZE, 3
-                ):
+                if payload["pose"].shape != (count, KEYPOINT_COUNT, 3) or payload[
+                    "crops"
+                ].shape != (count, DEFAULT_CROP_SIZE, DEFAULT_CROP_SIZE, 3):
                     raise ValueError("cache frame count or array shape does not match manifest")
                 if int(payload["label"]) != sample.label_index:
                     raise ValueError("cache label does not match manifest")
                 interval = metadata.get("sampling_interval_seconds")
                 if interval is not None:
                     cached = json.loads(str(payload["metadata"]))
-                    if (cached.get("sampling_interval_seconds") != interval
-                            or cached.get("sampling_version") != SAMPLING_VERSION):
+                    if not isinstance(cached, dict):
+                        raise ValueError("cache metadata must be an object")
+                    if (
+                        cached.get("sampling_interval_seconds") != interval
+                        or cached.get("sampling_version") != SAMPLING_VERSION
+                    ):
                         raise ValueError("cache sampling contract does not match manifest")
         except (OSError, ValueError, KeyError, TypeError, EOFError, BadZipFile) as exc:
-            raise ValueError(f"Invalid activity cache {sample.cache_path}: {exc}. "
-                             "Run prepare_activity_data.py again.") from exc
+            raise ValueError(
+                f"Invalid activity cache {sample.cache_path}: {exc}. "
+                "Run prepare_activity_data.py again."
+            ) from exc
 
 
 def cache_activity_samples(
@@ -195,13 +211,13 @@ def cache_activity_samples(
         raise ValueError("frames_per_sample must be positive")
     interval = validate_sampling_interval(sampling_interval_seconds)
     metadata_by_key = {
-        sample.key: _sample_metadata(sample, frames_per_sample, interval)
-        for sample in sample_list
+        sample.key: _sample_metadata(sample, frames_per_sample, interval) for sample in sample_list
     }
     pending_samples = [
         sample
         for sample in sample_list
-        if overwrite or not _valid_sample_cache(Path(sample.cache_path), metadata_by_key[sample.key])
+        if overwrite
+        or not _valid_sample_cache(Path(sample.cache_path), metadata_by_key[sample.key])
     ]
     skipped = len(sample_list) - len(pending_samples)
     if not pending_samples:
@@ -218,8 +234,9 @@ def cache_activity_samples(
         temporary_path = cache_path.with_suffix(f"{cache_path.suffix}.partial")
         started = perf_counter()
         try:
-            frames = sample_video_frames(Path(sample.video_path), frames_per_sample,
-                                         sampling_interval_seconds=interval)
+            frames = sample_video_frames(
+                Path(sample.video_path), frames_per_sample, sampling_interval_seconds=interval
+            )
             reset = getattr(pose_analyzer, "reset_tracking", None)
             if callable(reset):
                 reset()
@@ -252,17 +269,11 @@ def cache_activity_samples(
                 )
             os.replace(temporary_path, cache_path)
             completed += 1
-            print(
-                f"[{position}/{len(pending_samples)}] cached "
-                f"{Path(sample.video_path).name}"
-            )
+            print(f"[{position}/{len(pending_samples)}] cached {Path(sample.video_path).name}")
         except (OSError, RuntimeError, ValueError, cv2.error) as exc:
             failed += 1
             temporary_path.unlink(missing_ok=True)
-            print(
-                f"[{position}/{len(pending_samples)}] failed "
-                f"{sample.video_path}: {exc}"
-            )
+            print(f"[{position}/{len(pending_samples)}] failed {sample.video_path}: {exc}")
     return {"completed": completed, "skipped": skipped, "failed": failed}
 
 

@@ -10,9 +10,9 @@ from unittest.mock import Mock, patch
 import cv2
 import numpy as np
 
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from config import DEFAULT_CONFIG
 from detection import (
     MonitoringProcessor,
     PersonRuntime,
@@ -23,7 +23,6 @@ from detection import (
     _track_key,
     run_detection,
 )
-from config import DEFAULT_CONFIG
 from events import EventRecorder
 from identity import IdentityConsensus
 from pose import PoseResult
@@ -120,9 +119,7 @@ class MonitoringProcessorIntegrationTest(unittest.TestCase):
         capture.isOpened.return_value = True
         capture.read.side_effect = [(True, frame), (True, frame), (False, None)]
         positions = iter([0.0, 100.0])
-        capture.get.side_effect = lambda prop: (
-            10.0 if prop == cv2.CAP_PROP_FPS else next(positions)
-        )
+        capture.get.side_effect = lambda prop: 10.0 if prop == cv2.CAP_PROP_FPS else next(positions)
         processor = Mock()
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "recording.mp4"
