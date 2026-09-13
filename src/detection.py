@@ -323,11 +323,12 @@ class MonitoringProcessor:
                 identity_overlay.confirmed
                 and identity_overlay.name.casefold() in self.demo_high_review_names
             )
-            review_state = _apply_demo_review_override(
-                review_state,
-                identity_overlay.name,
-                self.demo_high_review_names,
-            )
+            if demo_override:
+                review_state = _apply_demo_review_override(
+                    review_state,
+                    identity_overlay.name,
+                    self.demo_high_review_names,
+                )
             demo_override_active = demo_override_active or demo_override
 
             with self.timer("render"):
@@ -423,10 +424,12 @@ class MonitoringProcessor:
                         average_latency,
                         self.activity_recognizer.inference_count,
                     )
-            if self.emotion_analyzer is not None:
-                self.emotion_analyzer.close()
         finally:
-            self.event_recorder.close()
+            try:
+                if self.emotion_analyzer is not None:
+                    self.emotion_analyzer.close()
+            finally:
+                self.event_recorder.close()
 
     def _prepare_identity_matcher(self, supplied_matcher: Any) -> Any:
         if supplied_matcher is not _AUTO:
@@ -533,7 +536,7 @@ class MonitoringProcessor:
         self._last_frame_clock = now
 
 
-def run_detection(source: int | str = 0, config: AppConfig | None = None) -> None:
+def run_detection(source: int | str = 0, config: AppConfig | None = None) -> bool:
     """Run live multi-person pose, expression, tracking, and identity overlays."""
     runtime_config = config or AppConfig.from_env()
     configure_logging(runtime_config.log_level, runtime_config.log_dir)
@@ -541,9 +544,11 @@ def run_detection(source: int | str = 0, config: AppConfig | None = None) -> Non
     if not capture.isOpened():
         logger.error("Could not open camera source %s", _source_for_logging(source))
         capture.release()
-        return
+        return False
 
     processor: MonitoringProcessor | None = None
+    successful = False
+    frames_processed = 0
     try:
         clock = CaptureClock(
             capture,
@@ -555,23 +560,30 @@ def run_detection(source: int | str = 0, config: AppConfig | None = None) -> Non
         while True:
             ok, frame = capture.read()
             if not ok:
-                logger.error("Failed to grab a camera frame")
+                successful = clock.recorded and frames_processed > 0
+                if not successful:
+                    logger.error("Failed to grab a camera frame")
                 break
 
             annotated = processor.process_frame(frame, timestamp=clock.timestamp())
+            frames_processed += 1
             cv2.imshow("Live Monitoring", annotated)
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 logger.info("Detection stopped by operator")
+                successful = True
                 break
     except Exception:
         logger.exception("Monitoring could not start or continue")
         print("Monitoring stopped. See output/logs/monitoring.log for details.")
     finally:
         capture.release()
-        if processor is not None:
-            processor.close()
-        cv2.destroyAllWindows()
-        cv2.waitKey(1)
+        try:
+            if processor is not None:
+                processor.close()
+        finally:
+            cv2.destroyAllWindows()
+            cv2.waitKey(1)
+    return successful
 
 
 def _discard_stale_tracks(

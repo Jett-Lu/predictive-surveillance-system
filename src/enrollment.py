@@ -91,11 +91,13 @@ def enrollment_folders(enrollments_dir: Path = ENROLLMENTS_DIR) -> list[str]:
 
 
 def sanitize_enrollment_label(value: str) -> str:
-    label = "".join(
-        char
-        for char in value.strip()
-        if char not in INVALID_LABEL_CHARS and ord(char) >= 32
-    ).strip(". ")[:MAX_LABEL_LENGTH].strip(". ")
+    label = (
+        "".join(
+            char for char in value.strip() if char not in INVALID_LABEL_CHARS and ord(char) >= 32
+        )
+        .strip(". ")[:MAX_LABEL_LENGTH]
+        .strip(". ")
+    )
     if not label or label.split(".", 1)[0].upper() in WINDOWS_RESERVED_NAMES:
         return ""
     return label
@@ -335,11 +337,7 @@ def handle_enrollment_state(
         return MenuState.ENROLL_CAPTURE, ""
 
     if state == MenuState.ENROLL_ABORT:
-        return (
-            MenuState.ENROLL_CAPTURE
-            if normalized_command == "a"
-            else MenuState.MENU
-        ), ""
+        return (MenuState.ENROLL_CAPTURE if normalized_command == "a" else MenuState.MENU), ""
 
     return MenuState.MENU, ""
 
@@ -445,9 +443,7 @@ def main(config: AppConfig | None = None) -> None:
             enrollment_session.reset()
             state = MenuState.ENROLL_GET_NAME
         elif normalized_command == "delete":
-            delete_session = DeleteSession(
-                names=enrollment_folders(config.enrollments_dir)
-            )
+            delete_session = DeleteSession(names=enrollment_folders(config.enrollments_dir))
             state = MenuState.DELETE_CHOOSE
         elif normalized_command == "detect":
             state = MenuState.DETECT

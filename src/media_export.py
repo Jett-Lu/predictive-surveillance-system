@@ -58,6 +58,8 @@ def export_media(
     input_path: Path = DEFAULT_INPUT_DIR,
     output_dir: Path = DEFAULT_OUTPUT_DIR,
     config: AppConfig | None = None,
+    *,
+    fail_on_error: bool = False,
 ) -> list[ExportResult]:
     """Process supported media inputs and return the successfully generated files."""
     input_path = input_path.resolve()
@@ -65,9 +67,15 @@ def export_media(
     output_dir.mkdir(parents=True, exist_ok=True)
     media_files = discover_media_files(input_path)
     if not media_files:
+        if fail_on_error:
+            raise RuntimeError(f"No supported photos or videos found in {input_path}")
         print(f"No supported photos or videos found in {input_path}")
         print(f"Add a file and run the command again. Output will appear in {output_dir}")
         return []
+
+    input_files = set(media_files)
+    if any(annotated_output_path(path, output_dir) in input_files for path in media_files):
+        raise ValueError("Output paths overlap input files; choose a separate output directory.")
 
     results: list[ExportResult] = []
     processor = _create_processor(config)
@@ -91,6 +99,8 @@ def export_media(
         processor.close()
 
     print(f"\nCompleted {len(results)} of {len(media_files)} media files.")
+    if fail_on_error and len(results) != len(media_files):
+        raise RuntimeError(f"Failed to export {len(media_files) - len(results)} media file(s).")
     return results
 
 
@@ -138,7 +148,7 @@ def _export_video(input_path: Path, output_path: Path, processor: Any) -> Export
 
         writer = cv2.VideoWriter(
             str(temporary_path),
-            cv2.VideoWriter_fourcc(*"mp4v"),
+            cv2.VideoWriter.fourcc(*"mp4v"),
             fps,
             (width, height),
         )

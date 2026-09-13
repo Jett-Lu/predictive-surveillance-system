@@ -42,14 +42,14 @@ def identity_model_specs(config: AppConfig) -> tuple[ModelSpec, ModelSpec]:
         ModelSpec(
             "YuNet face detector",
             config.face_detector_model_path,
-            f"https://raw.githubusercontent.com/opencv/opencv_zoo/{OPENCV_ZOO_REVISION}/"
+            f"https://media.githubusercontent.com/media/opencv/opencv_zoo/{OPENCV_ZOO_REVISION}/"
             "models/face_detection_yunet/face_detection_yunet_2023mar.onnx",
             FACE_DETECTOR_SHA256,
         ),
         ModelSpec(
             "SFace recognizer",
             config.face_recognizer_model_path,
-            f"https://raw.githubusercontent.com/opencv/opencv_zoo/{OPENCV_ZOO_REVISION}/"
+            f"https://media.githubusercontent.com/media/opencv/opencv_zoo/{OPENCV_ZOO_REVISION}/"
             "models/face_recognition_sface/face_recognition_sface_2021dec.onnx",
             FACE_RECOGNIZER_SHA256,
         ),
@@ -93,8 +93,7 @@ def ensure_model(spec: ModelSpec, config: AppConfig) -> Path:
 
     if not config.allow_model_downloads:
         raise ModelUnavailableError(
-            f"{spec.name} is missing or invalid at {spec.path}. "
-            "Model downloads are disabled."
+            f"{spec.name} is missing or invalid at {spec.path}. Model downloads are disabled."
         ) from verification_error
 
     try:

@@ -3,10 +3,25 @@
 from __future__ import annotations
 
 import argparse
+import math
 from dataclasses import replace
 from pathlib import Path
 
 from config import AppConfig
+
+
+def _positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return parsed
+
+
+def _unit_interval(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed) or not 0.0 <= parsed <= 1.0:
+        raise argparse.ArgumentTypeError("must be a finite number between 0 and 1")
+    return parsed
 
 
 def parse_args() -> argparse.Namespace:
@@ -89,22 +104,22 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--activity-sequence-length",
-        type=int,
+        type=_positive_int,
         help="Number of valid tracked poses required for activity inference.",
     )
     parser.add_argument(
         "--activity-confidence-threshold",
-        type=float,
+        type=_unit_interval,
         help="Minimum smoothed confidence for a named activity.",
     )
     parser.add_argument(
         "--activity-inference-interval",
-        type=int,
+        type=_positive_int,
         help="Minimum frames between activity inferences for one track.",
     )
     parser.add_argument(
         "--activity-smoothing-window",
-        type=int,
+        type=_positive_int,
         help="Number of activity probability vectors to average.",
     )
     return parser.parse_args()
@@ -115,12 +130,8 @@ def main() -> None:
     config = AppConfig.from_env()
     config = replace(
         config,
-        allow_model_downloads=(
-            False if args.no_model_downloads else config.allow_model_downloads
-        ),
-        event_logging_enabled=(
-            False if args.no_events else config.event_logging_enabled
-        ),
+        allow_model_downloads=(False if args.no_model_downloads else config.allow_model_downloads),
+        event_logging_enabled=(False if args.no_events else config.event_logging_enabled),
         log_level=args.log_level or config.log_level,
         activity_model=args.activity_model or config.activity_model,
         activity_checkpoint_path=(
@@ -168,13 +179,14 @@ def main() -> None:
     if args.process_media:
         from media_export import export_media
 
-        export_media(Path(args.input), Path(args.output_dir), config=config)
+        export_media(Path(args.input), Path(args.output_dir), config=config, fail_on_error=True)
         return
     if args.detect:
         from camera import normalize_camera_source
         from detection import run_detection
 
-        run_detection(source=normalize_camera_source(args.source), config=config)
+        if not run_detection(source=normalize_camera_source(args.source), config=config):
+            raise SystemExit(1)
         return
 
     from enrollment import main as menu_main

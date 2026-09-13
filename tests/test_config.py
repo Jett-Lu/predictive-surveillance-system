@@ -14,6 +14,24 @@ from main import parse_args
 
 
 class EnvironmentConfigTest(unittest.TestCase):
+    def test_invalid_log_level_falls_back_to_info(self) -> None:
+        with patch.dict(os.environ, {"MONITOR_LOG_LEVEL": "getLogger"}):
+            self.assertEqual(AppConfig.from_env().log_level, "INFO")
+
+    def test_invalid_cli_activity_settings_fail_at_argument_parsing(self) -> None:
+        for option, value in (
+            ("--activity-sequence-length", "0"),
+            ("--activity-inference-interval", "-1"),
+            ("--activity-smoothing-window", "0"),
+            ("--activity-confidence-threshold", "nan"),
+            ("--activity-confidence-threshold", "1.1"),
+        ):
+            with self.subTest(option=option, value=value):
+                with patch.object(sys, "argv", ["main.py", option, value]):
+                    with self.assertRaises(SystemExit) as error:
+                        parse_args()
+                    self.assertEqual(error.exception.code, 2)
+
     def test_activity_is_disabled_by_default(self) -> None:
         self.assertEqual(AppConfig().activity_model, "none")
 

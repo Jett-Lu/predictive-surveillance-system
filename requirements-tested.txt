@@ -1,5 +1,8 @@
 # Exact top-level package versions used for the July 2026 Windows POC verification.
 # Transitive dependencies remain platform-specific and are resolved by pip.
+# Historical snapshot only; use requirements.txt for current security floors.
+# Keep the audited Torch floor even when reproducing these top-level versions.
+torch>=2.13,<2.14
 opencv-contrib-python==4.13.0.92
 opencv-python==4.13.0.92
 numpy==2.4.4

@@ -109,7 +109,7 @@ def evaluate_all_models(
             logits = model(torch.from_numpy(normalized).float().to(device))
             predicted = logits.argmax(dim=1).cpu().numpy()
         matrix = confusion_matrix(expected, predicted, len(ACTIVITY_LABELS))
-        metrics = classification_metrics(matrix)
+        metrics: dict[str, Any] = dict(classification_metrics(matrix))
         metrics["averaging"] = "macro"
         metrics["training_time_seconds"] = float(checkpoint["training_time_seconds"])
         metrics["inference_latency_ms"] = measure_inference_latency(
@@ -270,11 +270,13 @@ def measure_inference_latency(
             if model_name == "mlp":
                 raw_features = torch.from_numpy(pose.reshape(1, -1)).float().to(device)
             elif model_name == "cnn":
+                assert extractor is not None
                 raw_features = extractor(image_tensor(crops).to(device)).mean(
                     dim=0,
                     keepdim=True,
                 )
             else:
+                assert extractor is not None
                 raw_features = extractor(video_tensor(crops).to(device))
             mean = checkpoint["feature_mean"].to(device)
             standard_deviation = checkpoint["feature_std"].to(device)

@@ -6,14 +6,14 @@ import csv
 import json
 from numbers import Integral
 from pathlib import Path
-from typing import Sequence
+from typing import Sequence, TypedDict
 
 import numpy as np
 
 
 def confusion_matrix(
-    expected: Sequence[int],
-    predicted: Sequence[int],
+    expected: Sequence[int] | np.ndarray,
+    predicted: Sequence[int] | np.ndarray,
     class_count: int = 4,
 ) -> np.ndarray:
     if class_count < 1:
@@ -37,7 +37,16 @@ def confusion_matrix(
     return matrix
 
 
-def classification_metrics(matrix: np.ndarray) -> dict[str, object]:
+class ClassificationMetrics(TypedDict):
+    accuracy: float
+    macro_precision: float
+    macro_recall: float
+    macro_f1: float
+    confusion_matrix: list[list[int]]
+    sample_count: int
+
+
+def classification_metrics(matrix: np.ndarray) -> ClassificationMetrics:
     matrix = np.asarray(matrix)
     if matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1] or not matrix.shape[0]:
         raise ValueError("Confusion matrix must be a non-empty square array")

@@ -15,6 +15,23 @@ from media_export import annotated_output_path, discover_media_files, export_med
 
 
 class MediaExportHelpersTest(unittest.TestCase):
+    def test_export_refuses_to_overwrite_another_input(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "photo.png").write_bytes(b"original")
+            protected = root / "photo_annotated.png"
+            protected.write_bytes(b"second input")
+            with patch("media_export._create_processor"):
+                with self.assertRaisesRegex(ValueError, "input"):
+                    export_media(root, root)
+            self.assertEqual(protected.read_bytes(), b"second input")
+
+    def test_strict_export_fails_when_no_input_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with self.assertRaisesRegex(RuntimeError, "No supported"):
+                export_media(root / "missing.mp4", root / "output", fail_on_error=True)
+
     def test_discover_media_files_returns_supported_files_only(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             folder = Path(temp_dir)

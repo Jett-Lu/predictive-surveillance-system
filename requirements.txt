@@ -6,3 +6,5 @@ mediapipe>=0.10.35,<0.11
 emotiefflib>=1.1.1,<1.2
 ultralytics>=8.4,<8.5
 lap>=0.5.13,<0.6
+# Security floor for the PyTorch runtime pulled in by Ultralytics.
+torch>=2.13,<2.14

@@ -31,6 +31,19 @@ def complete_wave(monitor: RightHandWaveMonitor, start_time: float) -> None:
 
 
 class RightHandWaveMonitorTest(unittest.TestCase):
+    def test_body_translation_does_not_count_as_hand_motion(self) -> None:
+        monitor = RightHandWaveMonitor()
+        for index, x in enumerate((0.3, 0.4, 0.3, 0.4)):
+            state = monitor.update(
+                {
+                    MoveNetKeypoint.RIGHT_SHOULDER: (x, 0.5),
+                    MoveNetKeypoint.RIGHT_WRIST: (x + 0.1, 0.3),
+                },
+                index * 0.3,
+            )
+        self.assertFalse(state.wave_detected)
+        self.assertEqual(state.recent_wave_count, 0)
+
     def test_low_hand_motion_does_not_count_as_wave(self) -> None:
         monitor = RightHandWaveMonitor()
         for offset, x in enumerate((0.42, 0.62, 0.38, 0.64)):

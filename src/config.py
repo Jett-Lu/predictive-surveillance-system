@@ -100,9 +100,7 @@ class AppConfig:
     min_keypoint_confidence: float = 0.30
 
     activity_model: str = "none"
-    activity_checkpoint_path: Path = (
-        PROJECT_ROOT / "data" / "activity_models" / "mlp.pt"
-    )
+    activity_checkpoint_path: Path = PROJECT_ROOT / "data" / "activity_models" / "mlp.pt"
     activity_sequence_length: int = 16
     activity_confidence_threshold: float = 0.50
     activity_inference_interval: int = 5
@@ -155,12 +153,8 @@ class AppConfig:
             identity_min_face_confidence=_env_float(
                 "MONITOR_MIN_FACE_CONFIDENCE", 0.85, maximum=1.0
             ),
-            identity_cosine_threshold=_env_float(
-                "MONITOR_IDENTITY_THRESHOLD", 0.363, maximum=1.0
-            ),
-            identity_min_score_margin=_env_float(
-                "MONITOR_IDENTITY_MARGIN", 0.03, maximum=1.0
-            ),
+            identity_cosine_threshold=_env_float("MONITOR_IDENTITY_THRESHOLD", 0.363, maximum=1.0),
+            identity_min_score_margin=_env_float("MONITOR_IDENTITY_MARGIN", 0.03, maximum=1.0),
             min_concern_expression_confidence=_env_float(
                 "MONITOR_EXPRESSION_CONFIDENCE", 0.65, maximum=1.0
             ),
@@ -169,9 +163,7 @@ class AppConfig:
             ),
             pose_confidence=_env_float("MONITOR_POSE_CONFIDENCE", 0.30, maximum=1.0),
             pose_iou=_env_float("MONITOR_POSE_IOU", 0.45, maximum=1.0),
-            min_keypoint_confidence=_env_float(
-                "MONITOR_KEYPOINT_CONFIDENCE", 0.30, maximum=1.0
-            ),
+            min_keypoint_confidence=_env_float("MONITOR_KEYPOINT_CONFIDENCE", 0.30, maximum=1.0),
             activity_model=_env_choice(
                 "MONITOR_ACTIVITY_MODEL",
                 "none",
@@ -200,7 +192,11 @@ class AppConfig:
             ),
             debug_timing=_env_bool("MONITOR_DEBUG_TIMING", False),
             event_logging_enabled=_env_bool("MONITOR_EVENT_LOGGING", True),
-            log_level=os.environ.get("MONITOR_LOG_LEVEL", "INFO").upper(),
+            log_level=_env_choice(
+                "MONITOR_LOG_LEVEL",
+                "info",
+                {"debug", "info", "warning", "error", "critical", "notset"},
+            ).upper(),
             demo_high_review_names=os.environ.get("DEMO_HIGH_REVIEW_NAMES", ""),
         )
 

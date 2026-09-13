@@ -77,9 +77,7 @@ def run_diagnostics(
 def print_diagnostics(checks: list[DiagnosticCheck]) -> None:
     for check in checks:
         print(f"[{'PASS' if check.passed else 'FAIL'}] {check.name}: {check.detail}")
-    print(
-        f"\nOverall: {'READY' if all(check.passed for check in checks) else 'ACTION REQUIRED'}"
-    )
+    print(f"\nOverall: {'READY' if all(check.passed for check in checks) else 'ACTION REQUIRED'}")
 
 
 def _check_packages() -> DiagnosticCheck:
@@ -118,9 +116,7 @@ def _check_opencv_face_apis() -> DiagnosticCheck:
     return DiagnosticCheck(
         "OpenCV face APIs",
         available,
-        "YuNet and SFace APIs available"
-        if available
-        else "Install opencv-contrib-python",
+        "YuNet and SFace APIs available" if available else "Install opencv-contrib-python",
     )
 
 

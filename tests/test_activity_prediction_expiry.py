@@ -70,9 +70,7 @@ class ActivityPredictionExpiryTest(unittest.TestCase):
         with patch.object(recognizer, "_predict_probabilities", return_value=WALKING):
             first = recognizer.update(1, LANDMARKS, BOX, FRAME_SHAPE, 0)
             for frame in (1, 2):
-                self.assertEqual(
-                    recognizer.update(1, LANDMARKS, BOX, FRAME_SHAPE, frame), first
-                )
+                self.assertEqual(recognizer.update(1, LANDMARKS, BOX, FRAME_SHAPE, frame), first)
         with patch.object(recognizer, "_predict_probabilities", return_value=RUNNING):
             prediction = recognizer.update(1, LANDMARKS, BOX, FRAME_SHAPE, 3)
         self.assertEqual(prediction.label, "unknown")

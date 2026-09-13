@@ -8,6 +8,11 @@ The project was developed as an applied artificial intelligence portfolio
 piece to explore how multiple computer vision models can be integrated into a
 single processing pipeline.
 
+See [runtime configuration](docs/configuration.md) for environment variables,
+filesystem requirements and operational limits, and the
+[final production audit](docs/production-audit.md) for verification results
+and remaining release blockers.
+
 <img width="1069" height="598" alt="image" src="https://github.com/user-attachments/assets/98c651a0-158e-46c2-81f4-dbaf38517503" />
 
 ## Project Overview
@@ -650,9 +655,9 @@ This reduces redundant computation.
 
 ### Independent Track State
 
-State is keyed by the persistent tracking ID. This prevents one person's
-identity, activity, expression, or gesture history from being assigned to
-another person.
+State is keyed by the persistent tracking ID. This isolates histories while
+tracker IDs remain correct; tracker ID switches during crossings or occlusion
+can still associate history with the wrong person and require validation.
 
 ### Offline Reproducibility
 

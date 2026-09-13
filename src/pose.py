@@ -114,7 +114,8 @@ class PoseAnalyzer:
                 frame_height=height,
                 min_score=self.min_keypoint_confidence,
             )
-            raw_box = tuple(int(value) for value in boxes.xyxy[index].tolist())
+            x1, y1, x2, y2 = boxes.xyxy[index].tolist()
+            raw_box = (int(x1), int(y1), int(x2), int(y2))
             box = _clamp_box(raw_box, width, height)
             if box[2] <= box[0] or box[3] <= box[1]:
                 continue
@@ -132,9 +133,7 @@ class PoseAnalyzer:
     ) -> dict[int, tuple[float, float]]:
         points = _as_numpy(keypoints)
         scores = (
-            np.ones(len(points), dtype=np.float32)
-            if confidence is None
-            else _as_numpy(confidence)
+            np.ones(len(points), dtype=np.float32) if confidence is None else _as_numpy(confidence)
         )
         landmarks: dict[int, tuple[float, float]] = {}
         for index, ((x, y), score) in enumerate(zip(points, scores)):
@@ -168,6 +167,7 @@ class PoseAnalyzer:
         """Clear ByteTrack state between unrelated live or recorded sources."""
         if hasattr(self.model, "predictor"):
             self.model.predictor = None
+
 
 def _as_numpy(value: Any) -> np.ndarray:
     if hasattr(value, "cpu"):

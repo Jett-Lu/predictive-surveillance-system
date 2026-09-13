@@ -80,7 +80,7 @@ class IdentityConsensus:
         # Expire cached evidence before a new observation can renew it.
         self.current(frame_number)
         accepted_name = match.name if match is not None and match.matched else None
-        accepted_score = match.score if accepted_name is not None else None
+        accepted_score = match.score if match is not None and accepted_name is not None else None
         if (
             accepted_name is not None
             and self._confirmed_name is not None
@@ -93,9 +93,7 @@ class IdentityConsensus:
         while len(self._observations) > self.window_size:
             self._observations.popleft()
 
-        counts = Counter(
-            name for name, _ in self._observations if name is not None
-        )
+        counts = Counter(name for name, _ in self._observations if name is not None)
         if counts:
             candidate_name, candidate_count = counts.most_common(1)[0]
             candidate_scores = [
@@ -104,15 +102,10 @@ class IdentityConsensus:
                 if name == candidate_name and score is not None
             ]
             # Only fresh support for the candidate can renew confirmation.
-            if (
-                candidate_count >= self.required_matches
-                and accepted_name == candidate_name
-            ):
+            if candidate_count >= self.required_matches and accepted_name == candidate_name:
                 self._confirmed_name = candidate_name
                 self._confirmed_score = (
-                    sum(candidate_scores) / len(candidate_scores)
-                    if candidate_scores
-                    else None
+                    sum(candidate_scores) / len(candidate_scores) if candidate_scores else None
                 )
                 self._last_confirmed_frame = frame_number
                 self._suspended = False
@@ -161,7 +154,7 @@ class OpenCVFaceIdentifier:
         self.min_score_margin = min_score_margin
         self.min_face_size = min_face_size
         self.min_face_confidence = min_face_confidence
-        self.detector = cv2.FaceDetectorYN_create(
+        self.detector = cv2.FaceDetectorYN.create(
             str(detector_model_path),
             "",
             (320, 320),
@@ -169,7 +162,7 @@ class OpenCVFaceIdentifier:
             0.3,
             5000,
         )
-        self.recognizer = cv2.FaceRecognizerSF_create(str(recognizer_model_path), "")
+        self.recognizer = cv2.FaceRecognizerSF.create(str(recognizer_model_path), "")
 
     def load_enrollments(self, enrollments_dir: Path) -> list[KnownIdentity]:
         if not enrollments_dir.exists():
@@ -278,10 +271,7 @@ class OpenCVFaceIdentifier:
         best_name, best_score = ranked[0]
         runner_up_score = ranked[1][1] if len(ranked) > 1 else None
         margin = best_score - runner_up_score if runner_up_score is not None else best_score
-        matched = (
-            best_score >= self.cosine_threshold
-            and margin >= self.min_score_margin
-        )
+        matched = best_score >= self.cosine_threshold and margin >= self.min_score_margin
         return IdentityMatch(
             name=best_name if matched else "Unknown",
             score=best_score,

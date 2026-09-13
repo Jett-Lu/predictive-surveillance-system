@@ -41,12 +41,13 @@ class RightHandWaveMonitor:
             return self._state(wave_detected=False)
 
         wrist_x, wrist_y = right_wrist
-        _, shoulder_y = right_shoulder
+        shoulder_x, shoulder_y = right_shoulder
+        wrist_x -= shoulder_x
         if wrist_y > shoulder_y + self.raised_hand_margin:
             self._reset_motion()
             return self._state(wave_detected=False)
 
-        if self._motion_start_time is None:
+        if self._motion_start_time is None or self._anchor_x is None:
             self._start_motion(wrist_x, timestamp)
             return self._state(wave_detected=False)
 

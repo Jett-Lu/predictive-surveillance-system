@@ -50,7 +50,7 @@ def build_mobilenet_extractor(pretrained: bool = True) -> nn.Module:
 
     weights = MobileNet_V2_Weights.DEFAULT if pretrained else None
     model = mobilenet_v2(weights=weights)
-    model.classifier = nn.Identity()
+    model.classifier = nn.Sequential()
     model.eval()
     for parameter in model.parameters():
         parameter.requires_grad = False
@@ -63,7 +63,7 @@ def build_s3d_extractor(pretrained: bool = True) -> nn.Module:
 
     weights = S3D_Weights.DEFAULT if pretrained else None
     model = s3d(weights=weights)
-    model.classifier = nn.Identity()
+    model.classifier = nn.Sequential()
     model.eval()
     for parameter in model.parameters():
         parameter.requires_grad = False

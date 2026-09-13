@@ -61,10 +61,7 @@ class EmotionSmoother:
             return None
 
         self._observations.append((timestamp, result))
-        while (
-            self._observations
-            and timestamp - self._observations[0][0] > self.window_seconds
-        ):
+        while self._observations and timestamp - self._observations[0][0] > self.window_seconds:
             self._observations.popleft()
 
         weights: defaultdict[str, float] = defaultdict(float)

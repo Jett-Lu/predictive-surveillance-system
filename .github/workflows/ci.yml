@@ -24,7 +24,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
           python -m pip install -r requirements-activity.txt
-          python -m pip install ruff==0.16.7
+          python -m pip install ruff==0.16.7 pyright==1.1.414 build
       - name: Check dependency consistency
         run: python -m pip check
       - name: Compile source
@@ -33,3 +33,9 @@ jobs:
         run: python -m ruff check --config pyproject.toml src scripts tests
       - name: Run tests
         run: python -m unittest discover -s tests -v
+      - name: Check formatting
+        run: python -m ruff format --check --config pyproject.toml src scripts tests
+      - name: Check types
+        run: python -m pyright src scripts
+      - name: Build distributions
+        run: python -m build

@@ -59,8 +59,7 @@ class ReviewLevelMonitor:
 
         target_strength = (
             float(confidence)
-            if label in CONCERN_EXPRESSIONS
-            and float(confidence) >= self.min_concern_confidence
+            if label in CONCERN_EXPRESSIONS and float(confidence) >= self.min_concern_confidence
             else 0.0
         )
         self._concern_strength = (

@@ -161,18 +161,20 @@ class LiveMLPActivityRecognizer:
             if state.next_sample_timestamp is None:
                 state.next_sample_timestamp = observation_time
             sampled = False
-            while state.next_sample_timestamp <= observation_time + 1e-8:
+            next_sample_timestamp = state.next_sample_timestamp
+            while next_sample_timestamp <= observation_time + 1e-8:
                 # Hold the most recent observation at each source-time grid point.
                 sampled_pose = (
                     state.last_observation_pose
-                    if state.next_sample_timestamp < observation_time - 1e-8
+                    if next_sample_timestamp < observation_time - 1e-8
                     and state.last_observation_pose is not None
                     else pose_features
                 )
                 state.pose_history.append(sampled_pose)
                 state.valid_history.append(bool(np.any(sampled_pose[:, 2] > 0)))
-                state.next_sample_timestamp += interval
+                next_sample_timestamp += interval
                 sampled = True
+            state.next_sample_timestamp = next_sample_timestamp
             state.last_observation_timestamp = observation_time
             state.last_observation_pose = pose_features
             if not sampled:

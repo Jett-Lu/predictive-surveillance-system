@@ -113,6 +113,49 @@ class RecordingEventRecorder:
 
 
 class MonitoringProcessorIntegrationTest(unittest.TestCase):
+    def test_close_releases_resources_when_activity_metrics_fail(self) -> None:
+        from unittest.mock import PropertyMock
+
+        activity = Mock()
+        type(activity).average_inference_latency_ms = PropertyMock(
+            side_effect=RuntimeError("metrics unavailable")
+        )
+        processor = MonitoringProcessor(
+            replace(DEFAULT_CONFIG, activity_model="none"),
+            pose_analyzer=FakePoseAnalyzer(),
+            emotion_analyzer=Mock(),
+            identity_matcher=None,
+            activity_recognizer=activity,
+            event_recorder=Mock(),
+        )
+        with self.assertRaisesRegex(RuntimeError, "metrics unavailable"):
+            processor.close()
+        processor.emotion_analyzer.close.assert_called_once()
+        processor.event_recorder.close.assert_called_once()
+
+    def test_anonymous_label_cannot_trigger_demo_override(self) -> None:
+        processor = MonitoringProcessor(
+            replace(DEFAULT_CONFIG, demo_high_review_names="Person", activity_model="none"),
+            pose_analyzer=FakePoseAnalyzer(),
+            emotion_analyzer=None,
+            identity_matcher=None,
+            event_recorder=EventRecorder(None),
+        )
+        try:
+            processor.process_frame(np.zeros((100, 100, 3), np.uint8), timestamp=0.0)
+            snapshot = processor.last_snapshots[0]
+            self.assertEqual(snapshot.tier_label, "CLEAR")
+            self.assertFalse(snapshot.demo_override)
+        finally:
+            processor.close()
+
+    def test_unavailable_capture_reports_failure(self) -> None:
+        capture = Mock()
+        capture.isOpened.return_value = False
+        with patch("detection.open_capture", return_value=capture):
+            self.assertIs(run_detection(0), False)
+        capture.release.assert_called_once()
+
     def test_recorded_detection_passes_media_time_to_processor(self) -> None:
         frame = np.zeros((100, 100, 3), dtype=np.uint8)
         capture = Mock()
