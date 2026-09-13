@@ -153,6 +153,15 @@ class LiveMLPActivityRecognizer:
             state.prediction = ActivityPrediction(UNKNOWN_ACTIVITY, 0.0)
             return state.prediction
         if not all(state.valid_history):
+            # Tolerate brief pose loss, but do not hold a label indefinitely
+            # when intermittent missing poses keep blocking inference.
+            max_prediction_age = max(self.sequence_length, self.inference_interval)
+            if (
+                state.last_inference_frame >= 0
+                and frame_number - state.last_inference_frame >= max_prediction_age
+            ):
+                state.probability_history.clear()
+                state.prediction = ActivityPrediction(UNKNOWN_ACTIVITY, 0.0)
             return state.prediction
         if (
             state.last_inference_frame >= 0
