@@ -1,6 +1,7 @@
 # Exact top-level package versions used for the July 2026 Windows POC verification.
 # Transitive dependencies remain platform-specific and are resolved by pip.
 opencv-contrib-python==4.13.0.92
+opencv-python==4.13.0.92
 numpy==2.4.4
 mediapipe==0.10.35
 emotiefflib==1.1.1

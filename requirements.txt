@@ -1,4 +1,6 @@
 opencv-contrib-python>=4.13,<4.14
+# Ultralytics also installs this wheel; keep both OpenCV builds on the same series.
+opencv-python>=4.13,<4.14
 numpy>=2.2,<2.5
 mediapipe>=0.10.35,<0.11
 emotiefflib>=1.1.1,<1.2

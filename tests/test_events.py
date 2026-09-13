@@ -34,7 +34,7 @@ class EventRecorderTest(unittest.TestCase):
             path = Path(temp_dir) / "events.jsonl"
             recorder = EventRecorder(path)
             recorder.record(snapshot(), 0.0, 0)
-            recorder.record(snapshot("MONITOR", 3), 1.0, 1)
+            recorder.record(replace(snapshot("MONITOR", 3), wave_detected=True), 1.0, 1)
             recorder.close()
 
             events = [json.loads(line) for line in path.read_text().splitlines()]
@@ -45,6 +45,18 @@ class EventRecorderTest(unittest.TestCase):
         )
         self.assertNotIn("activity_label", events[0])
         self.assertNotIn("activity_confidence", events[0])
+
+    def test_wave_is_recorded_when_an_old_wave_expires_at_the_same_time(self) -> None:
+        recorder = EventRecorder(None)
+        recorder.record(snapshot(waves=1), 0.0, 0)
+        recorder.record(replace(snapshot(waves=1), wave_detected=True), 30.1, 301)
+        self.assertEqual(recorder.recent_messages[-1], "Track 7: wave 1")
+
+    def test_demo_count_increase_does_not_fabricate_a_wave_event(self) -> None:
+        recorder = EventRecorder(None)
+        recorder.record(snapshot(), 0.0, 0)
+        recorder.record(replace(snapshot("HIGH", 5), demo_override=True), 1.0, 1)
+        self.assertFalse(any(": wave " in message for message in recorder.recent_messages))
 
     def test_expression_event_reports_context_strength(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

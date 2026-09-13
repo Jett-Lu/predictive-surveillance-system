@@ -34,7 +34,7 @@ from activity_recognition.models import (
     build_mobilenet_extractor,
     build_s3d_extractor,
 )
-from activity_recognition.preprocessing import image_tensor, video_tensor
+from activity_recognition.preprocessing import image_tensor, video_tensor, validate_cached_samples
 from activity_recognition.train import (
     cache_backbone_features,
     load_model_features,
@@ -51,6 +51,7 @@ def evaluate_all_models(
     *,
     device_name: str = "auto",
     latency_samples: int = 20,
+    overwrite_features: bool = False,
 ) -> dict[str, dict[str, Any]]:
     if latency_samples < 1:
         raise ValueError("latency_samples must be positive")
@@ -58,6 +59,7 @@ def evaluate_all_models(
     test_samples = samples_for_split(samples, "test")
     if not test_samples:
         raise ValueError("Manifest contains no official test samples")
+    validate_cached_samples(test_samples, metadata)
     device = resolve_device(device_name)
     seed = int(metadata.get("seed", 2026))
     set_reproducible_seed(seed)
@@ -84,12 +86,15 @@ def evaluate_all_models(
             raise ValueError(
                 f"Checkpoint frame count does not match manifest: {checkpoint_path}"
             )
+        if checkpoint.get("sampling_interval_seconds") != metadata.get("sampling_interval_seconds"):
+            raise ValueError(f"Checkpoint sampling interval does not match manifest: {checkpoint_path}")
         if model_name in {"cnn", "advanced"}:
             cache_backbone_features(
                 test_samples,
                 feature_root,
                 model_name,
                 device,
+                overwrite=overwrite_features,
             )
         model = build_activity_classifier(
             model_name,

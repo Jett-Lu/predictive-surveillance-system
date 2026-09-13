@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from unittest.mock import Mock, patch
 
+import cv2
 import numpy as np
 
 
@@ -18,6 +21,7 @@ from detection import (
     _parse_demo_high_review_names,
     _source_for_logging,
     _track_key,
+    run_detection,
 )
 from config import DEFAULT_CONFIG
 from events import EventRecorder
@@ -110,6 +114,54 @@ class RecordingEventRecorder:
 
 
 class MonitoringProcessorIntegrationTest(unittest.TestCase):
+    def test_recorded_detection_passes_media_time_to_processor(self) -> None:
+        frame = np.zeros((100, 100, 3), dtype=np.uint8)
+        capture = Mock()
+        capture.isOpened.return_value = True
+        capture.read.side_effect = [(True, frame), (True, frame), (False, None)]
+        positions = iter([0.0, 100.0])
+        capture.get.side_effect = lambda prop: (
+            10.0 if prop == cv2.CAP_PROP_FPS else next(positions)
+        )
+        processor = Mock()
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "recording.mp4"
+            source.touch()
+            with (
+                patch("detection.open_capture", return_value=capture),
+                patch("detection.MonitoringProcessor", return_value=processor),
+                patch("detection.cv2.imshow"),
+                patch("detection.cv2.waitKey", return_value=-1),
+                patch("detection.cv2.destroyAllWindows"),
+            ):
+                run_detection(str(source))
+        self.assertEqual(
+            [call.kwargs["timestamp"] for call in processor.process_frame.call_args_list],
+            [0.0, 0.1],
+        )
+        capture.release.assert_called_once()
+        processor.close.assert_called_once()
+
+    def test_pipeline_records_the_actual_wave_signal(self) -> None:
+        from gesture import WaveAlertState
+
+        recorder = RecordingEventRecorder()
+        processor = MonitoringProcessor(
+            replace(DEFAULT_CONFIG, activity_model="none"),
+            pose_analyzer=FakePoseAnalyzer(),
+            emotion_analyzer=None,
+            identity_matcher=None,
+            event_recorder=recorder,
+        )
+        wave_monitor = Mock()
+        wave_monitor.update.return_value = WaveAlertState(1, True)
+        processor.wave_monitor_type = lambda: wave_monitor
+        try:
+            processor.process_frame(np.zeros((100, 100, 3), dtype=np.uint8), timestamp=0.0)
+        finally:
+            processor.close()
+        self.assertTrue(recorder.recorded[0].wave_detected)
+
     def test_frame_pipeline_runs_with_optional_models_disabled(self) -> None:
         config = replace(
             DEFAULT_CONFIG,

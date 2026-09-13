@@ -30,6 +30,7 @@ class TrackSnapshot:
     demo_override: bool = False
     activity_label: str | None = None
     activity_confidence: float | None = None
+    wave_detected: bool = False
 
 
 @dataclass(frozen=True)
@@ -109,7 +110,7 @@ class EventRecorder:
                     },
                     f"Track {snapshot.track_key}: {previous.tier_label} -> {snapshot.tier_label}",
                 )
-            if snapshot.wave_count > previous.wave_count:
+            if snapshot.wave_detected:
                 self._emit(
                     "wave_counted",
                     snapshot,

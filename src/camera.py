@@ -3,8 +3,38 @@
 from __future__ import annotations
 
 import os
+import math
+import time
 
 import cv2
+
+
+DEFAULT_VIDEO_FPS = 24.0
+
+
+class CaptureClock:
+    """Use media time for recordings and monotonic time for live sources."""
+
+    def __init__(self, capture: cv2.VideoCapture, *, recorded: bool) -> None:
+        self.capture = capture
+        self.recorded = recorded
+        self._previous: float | None = None
+        fps = capture.get(cv2.CAP_PROP_FPS) if recorded else DEFAULT_VIDEO_FPS
+        self.fps = fps if math.isfinite(fps) and fps > 0 else DEFAULT_VIDEO_FPS
+
+    def timestamp(self) -> float:
+        """Read once after each successfully decoded frame."""
+        if not self.recorded:
+            return time.monotonic()
+        position = self.capture.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+        if (
+            not math.isfinite(position)
+            or position < 0
+            or (self._previous is not None and position <= self._previous)
+        ):
+            position = 0.0 if self._previous is None else self._previous + 1.0 / self.fps
+        self._previous = position
+        return position
 
 
 def normalize_camera_source(source: str | int) -> int | str:

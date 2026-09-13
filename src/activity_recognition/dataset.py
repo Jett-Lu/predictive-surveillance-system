@@ -20,6 +20,7 @@ from activity_recognition.labels import (
     LABEL_TO_INDEX,
     normalize_hmdb51_label,
 )
+from activity_recognition.sampling import DEFAULT_SAMPLING_INTERVAL_SECONDS, validate_sampling_interval
 
 
 MANIFEST_VERSION = 1
@@ -233,6 +234,7 @@ def write_manifest(
     validation_fraction: float,
     seed: int,
     frames_per_sample: int,
+    sampling_interval_seconds: float = DEFAULT_SAMPLING_INTERVAL_SECONDS,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -244,11 +246,14 @@ def write_manifest(
         "validation_fraction": validation_fraction,
         "seed": seed,
         "frames_per_sample": frames_per_sample,
+        "sampling_interval_seconds": validate_sampling_interval(sampling_interval_seconds),
         "labels": list(ACTIVITY_LABELS),
         "label_to_index": dict(LABEL_TO_INDEX),
         "samples": [asdict(sample) for sample in samples],
     }
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    temporary_path = path.with_suffix(f"{path.suffix}.partial")
+    temporary_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    os.replace(temporary_path, path)
 
 
 def load_manifest(path: Path) -> tuple[dict[str, Any], list[ActivitySample]]:
@@ -264,6 +269,8 @@ def load_manifest(path: Path) -> tuple[dict[str, Any], list[ActivitySample]]:
     frames_per_sample = payload.get("frames_per_sample")
     if not isinstance(frames_per_sample, int) or frames_per_sample < 1:
         raise ValueError("Activity manifest frames_per_sample must be a positive integer")
+    if "sampling_interval_seconds" in payload:
+        validate_sampling_interval(payload["sampling_interval_seconds"])
     samples = [ActivitySample(**sample) for sample in payload.get("samples", [])]
     if not samples:
         raise ValueError("Activity manifest contains no samples")

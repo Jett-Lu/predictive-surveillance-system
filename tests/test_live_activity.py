@@ -93,7 +93,7 @@ class RecordingActivityRecognizer:
         self.average_inference_latency_ms = None
         self.inference_count = 0
 
-    def update(self, track_key, landmarks, box, frame_shape, frame_number):
+    def update(self, track_key, landmarks, box, frame_shape, frame_number, *, timestamp=None):
         self.update_calls.append(track_key)
         return self.prediction
 

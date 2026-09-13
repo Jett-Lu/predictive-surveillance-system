@@ -37,6 +37,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--device", default="auto")
     parser.add_argument("--latency-samples", type=int, default=20)
+    parser.add_argument("--overwrite-features", action="store_true")
     return parser.parse_args()
 
 
@@ -49,6 +50,7 @@ def main() -> None:
         args.results_dir,
         device_name=args.device,
         latency_samples=args.latency_samples,
+        overwrite_features=args.overwrite_features,
     )
     print(f"Results: {args.results_dir.resolve()}")
 

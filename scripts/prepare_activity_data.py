@@ -17,6 +17,7 @@ from activity_recognition.dataset import (
     write_manifest,
 )
 from activity_recognition.preprocessing import cache_activity_samples
+from activity_recognition.sampling import DEFAULT_SAMPLING_INTERVAL_SECONDS
 
 
 def parse_args() -> argparse.Namespace:
@@ -37,6 +38,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--validation-fraction", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=2026)
     parser.add_argument("--frames", type=int, default=16)
+    parser.add_argument("--sampling-interval-seconds", type=float,
+                        default=DEFAULT_SAMPLING_INTERVAL_SECONDS)
     parser.add_argument("--overwrite", action="store_true")
     return parser.parse_args()
 
@@ -83,6 +86,15 @@ def main() -> None:
         )
         annotations_root = args.annotations_root
     manifest_path = cache_dir / "manifest.json"
+    counts = cache_activity_samples(
+        samples,
+        frames_per_sample=args.frames,
+        overwrite=args.overwrite,
+        sampling_interval_seconds=args.sampling_interval_seconds,
+    )
+    print(f"Cache summary: {counts}")
+    if counts["failed"]:
+        raise SystemExit(1)
     write_manifest(
         manifest_path,
         samples,
@@ -92,16 +104,9 @@ def main() -> None:
         validation_fraction=args.validation_fraction,
         seed=args.seed,
         frames_per_sample=args.frames,
-    )
-    counts = cache_activity_samples(
-        samples,
-        frames_per_sample=args.frames,
-        overwrite=args.overwrite,
+        sampling_interval_seconds=args.sampling_interval_seconds,
     )
     print(f"Manifest: {manifest_path}")
-    print(f"Cache summary: {counts}")
-    if counts["failed"]:
-        raise SystemExit(1)
 
 
 if __name__ == "__main__":

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import math
+import json
 import os
 import random
+from importlib.metadata import version
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
@@ -37,6 +39,9 @@ from activity_recognition.preprocessing import (
     image_tensor,
     load_cached_arrays,
     video_tensor,
+    file_fingerprint,
+    validate_cached_samples,
+    IMAGENET_MEAN, IMAGENET_STD, S3D_MEAN, S3D_STD, KEYPOINT_COUNT,
 )
 
 
@@ -82,11 +87,15 @@ def cache_backbone_features(
     model_feature_root = feature_root / model_name
     model_feature_root.mkdir(parents=True, exist_ok=True)
     sample_list = list(samples)
+    provenance = {
+        sample.key: _feature_provenance(sample, model_name) for sample in sample_list
+    }
     pending_samples = [
         sample
         for sample in sample_list
         if overwrite
-        or not (model_feature_root / f"{sample.key}.npy").is_file()
+        or not _valid_feature_cache(model_feature_root / f"{sample.key}.npy",
+                                    provenance[sample.key])
     ]
     if not pending_samples:
         return
@@ -115,9 +124,43 @@ def cache_backbone_features(
                     allow_pickle=False,
                 )
             os.replace(temporary_path, output_path)
+            sidecar_path = output_path.with_suffix(".json")
+            temporary_sidecar = sidecar_path.with_suffix(".json.partial")
+            metadata = dict(provenance[sample.key])
+            metadata["vector_sha256"] = file_fingerprint(output_path)
+            metadata["vector_shape"] = list(vector.shape)
+            temporary_sidecar.write_text(json.dumps(metadata, sort_keys=True), encoding="utf-8")
+            os.replace(temporary_sidecar, sidecar_path)
             print(
                 f"[{position}/{len(pending_samples)}] cached {model_name} features"
             )
+
+
+def _feature_provenance(sample: ActivitySample, model_name: str) -> dict[str, Any]:
+    return {
+        "version": 1, "source_sha256": file_fingerprint(Path(sample.cache_path)),
+        "extractor": "mobilenet_v2.IMAGENET1K_V2" if model_name == "cnn" else "s3d.KINETICS400_V1",
+        "torchvision_version": version("torchvision"), "torch_version": str(torch.__version__),
+        "preprocessing": "rgb-uint8-normalize-v1",
+        "mean": list(IMAGENET_MEAN if model_name == "cnn" else S3D_MEAN),
+        "std": list(IMAGENET_STD if model_name == "cnn" else S3D_STD),
+        "aggregation": "frame-mean" if model_name == "cnn" else "clip",
+    }
+
+
+def _valid_feature_cache(path: Path, expected: dict[str, Any]) -> bool:
+    try:
+        metadata = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+        if any(metadata.get(key) != value for key, value in expected.items()):
+            return False
+        if metadata.get("vector_sha256") != file_fingerprint(path):
+            return False
+        vector = np.load(path, allow_pickle=False)
+        return (vector.ndim == 1 and vector.size > 0 and vector.dtype == np.float32
+                and list(vector.shape) == metadata.get("vector_shape")
+                and bool(np.isfinite(vector).all()))
+    except (OSError, ValueError, TypeError, EOFError):
+        return False
 
 
 def load_model_features(
@@ -159,6 +202,7 @@ def train_all_models(
     overwrite_features: bool = False,
 ) -> dict[str, TrainingResult]:
     metadata, samples = load_manifest(manifest_path)
+    validate_cached_samples(samples, metadata)
     train_samples = samples_for_split(samples, "train")
     validation_samples = samples_for_split(samples, "validation")
     if not train_samples or not validation_samples:
@@ -168,10 +212,9 @@ def train_all_models(
     model_root.mkdir(parents=True, exist_ok=True)
     feature_root.mkdir(parents=True, exist_ok=True)
 
-    development_samples = [*train_samples, *validation_samples]
     for model_name in ("cnn", "advanced"):
         cache_backbone_features(
-            development_samples,
+            samples,
             feature_root,
             model_name,
             device,
@@ -240,6 +283,9 @@ def train_classifier(
         raise ValueError("Training and validation features must be 2D arrays")
     if training_features.shape[1] != validation_features.shape[1]:
         raise ValueError("Training and validation feature widths must match")
+    frame_count = (manifest_metadata or {}).get("frames_per_sample", 16)
+    if model_name == "mlp" and training_features.shape[1] != frame_count * KEYPOINT_COUNT * 3:
+        raise ValueError("MLP feature width does not match manifest frame count")
     if len(training_features) != len(training_labels) or len(
         validation_features
     ) != len(validation_labels):
@@ -354,6 +400,8 @@ def train_classifier(
             "frames_per_sample": int(
                 (manifest_metadata or {}).get("frames_per_sample", 16)
             ),
+            **({"sampling_interval_seconds": manifest_metadata["sampling_interval_seconds"]}
+               if manifest_metadata and "sampling_interval_seconds" in manifest_metadata else {}),
         },
         checkpoint_path,
     )

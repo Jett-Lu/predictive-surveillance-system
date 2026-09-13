@@ -5,12 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-import math
 import os
 
 import cv2
 
 from config import AppConfig
+from camera import CaptureClock
 from logging_setup import get_logger
 
 
@@ -20,7 +20,6 @@ DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "output"
 IMAGE_EXTENSIONS = frozenset({".bmp", ".jpeg", ".jpg", ".png", ".webp"})
 VIDEO_EXTENSIONS = frozenset({".avi", ".m4v", ".mkv", ".mov", ".mp4"})
 SUPPORTED_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
-DEFAULT_VIDEO_FPS = 24.0
 logger = get_logger("export")
 
 
@@ -56,7 +55,8 @@ def annotated_output_path(input_path: Path, output_dir: Path) -> Path:
         if input_path.suffix.lower() in IMAGE_EXTENSIONS
         else ".mp4"
     )
-    return output_dir / f"{input_path.stem}_annotated{suffix}"
+    name = input_path.stem if input_path.suffix.lower() in IMAGE_EXTENSIONS else input_path.name
+    return output_dir / f"{name}_annotated{suffix}"
 
 
 def export_media(
@@ -126,6 +126,7 @@ def _export_image(input_path: Path, output_path: Path, processor: Any) -> Export
 def _export_video(input_path: Path, output_path: Path, processor: Any) -> ExportResult:
     capture = cv2.VideoCapture(str(input_path))
     if not capture.isOpened():
+        capture.release()
         raise RuntimeError("OpenCV could not open the video.")
 
     writer: Any = None
@@ -133,9 +134,8 @@ def _export_video(input_path: Path, output_path: Path, processor: Any) -> Export
     temporary_path = _partial_output_path(output_path)
     failed = False
     try:
-        fps = capture.get(cv2.CAP_PROP_FPS)
-        if not math.isfinite(fps) or fps <= 0:
-            fps = DEFAULT_VIDEO_FPS
+        clock = CaptureClock(capture, recorded=True)
+        fps = clock.fps
         width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
         if width <= 0 or height <= 0:
@@ -154,7 +154,7 @@ def _export_video(input_path: Path, output_path: Path, processor: Any) -> Export
             ok, frame = capture.read()
             if not ok:
                 break
-            timestamp = frames_processed / fps
+            timestamp = clock.timestamp()
             writer.write(processor.process_frame(frame, timestamp=timestamp))
             frames_processed += 1
             if frames_processed % 30 == 0:

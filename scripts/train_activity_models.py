@@ -71,6 +71,7 @@ def main() -> None:
             args.model_dir,
             args.results_dir,
             device_name=args.device,
+            overwrite_features=args.overwrite_features,
         )
         print(f"Results: {args.results_dir.resolve()}")
 

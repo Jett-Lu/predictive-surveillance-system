@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
+from pathlib import Path
 from typing import Any, Sequence
 from urllib.parse import urlsplit, urlunsplit
 import os
@@ -12,7 +13,7 @@ import time
 
 import cv2
 
-from camera import open_capture
+from camera import CaptureClock, open_capture
 from config import AppConfig, DEFAULT_CONFIG
 from events import EventRecorder, TrackSnapshot, session_event_path
 from identity import IdentityConsensus, KnownIdentity, OpenCVFaceIdentifier, offset_box
@@ -287,6 +288,7 @@ class MonitoringProcessor:
                         pose_result.box,
                         frame.shape,
                         self.frame_count,
+                        timestamp=timestamp,
                     )
 
             wave_state = runtime.wave_monitor.update(
@@ -380,6 +382,7 @@ class MonitoringProcessor:
                 tier_label=review_state.tier_label,
                 review_score=review_state.score,
                 wave_count=review_state.recent_wave_count,
+                wave_detected=wave_state.wave_detected,
                 expression_label=review_state.concern_label,
                 expression_context_strength=review_state.concern_strength,
                 demo_override=demo_override,
@@ -568,10 +571,15 @@ def run_detection(source: int | str = 0, config: AppConfig | None = None) -> Non
     capture = open_capture(source)
     if not capture.isOpened():
         logger.error("Could not open camera source %s", _source_for_logging(source))
+        capture.release()
         return
 
     processor: MonitoringProcessor | None = None
     try:
+        clock = CaptureClock(
+            capture,
+            recorded=isinstance(source, str) and Path(source).is_file(),
+        )
         processor = MonitoringProcessor(runtime_config)
         processor.reset_tracking(mode="live", source=str(source))
         logger.info("Detection running; press q in the camera window to quit")
@@ -581,7 +589,7 @@ def run_detection(source: int | str = 0, config: AppConfig | None = None) -> Non
                 logger.error("Failed to grab a camera frame")
                 break
 
-            annotated = processor.process_frame(frame)
+            annotated = processor.process_frame(frame, timestamp=clock.timestamp())
             cv2.imshow("Live Monitoring", annotated)
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 logger.info("Detection stopped by operator")

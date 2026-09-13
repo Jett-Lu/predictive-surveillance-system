@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import os
+import json
+from hashlib import sha256
+from zipfile import BadZipFile
 from pathlib import Path
 from time import perf_counter
 from typing import TYPE_CHECKING, Any, Iterable
@@ -11,6 +14,9 @@ import cv2
 import numpy as np
 
 from activity_recognition.dataset import ActivitySample
+from activity_recognition.sampling import (
+    DEFAULT_SAMPLING_INTERVAL_SECONDS, SAMPLING_VERSION, validate_sampling_interval,
+)
 
 if TYPE_CHECKING:
     import torch
@@ -77,26 +83,102 @@ def crop_person(
 def sample_video_frames(
     video_path: Path,
     frame_count: int = DEFAULT_FRAMES_PER_SAMPLE,
+    *,
+    sampling_interval_seconds: float = DEFAULT_SAMPLING_INTERVAL_SECONDS,
 ) -> list[np.ndarray]:
-    """Decode uniformly spaced frames in source order."""
+    """Decode a fixed-duration source-time window with bounded frame storage."""
     if frame_count < 1:
         raise ValueError("frame_count must be positive")
+    interval = validate_sampling_interval(sampling_interval_seconds)
     capture = cv2.VideoCapture(str(video_path))
     if not capture.isOpened():
         raise RuntimeError(f"OpenCV could not open video: {video_path}")
     frames: list[np.ndarray] = []
     try:
-        while True:
+        fps = capture.get(cv2.CAP_PROP_FPS)
+        if not np.isfinite(fps) or fps <= 0:
+            raise ValueError(f"Video has no valid source frame rate: {video_path}")
+        indexes = np.floor(np.arange(frame_count) * interval * fps + 1e-8).astype(int)
+        source_index = 0
+        last_frame = None
+        while len(frames) < frame_count:
             ok, frame = capture.read()
             if not ok:
                 break
-            frames.append(frame)
+            last_frame = frame
+            while len(frames) < frame_count and indexes[len(frames)] == source_index:
+                frames.append(frame)
+            source_index += 1
+        if last_frame is not None:
+            frames.extend([last_frame] * (frame_count - len(frames)))
     finally:
         capture.release()
     if not frames:
         raise RuntimeError(f"Video contains no readable frames: {video_path}")
-    indexes = np.linspace(0, len(frames) - 1, frame_count).round().astype(int)
-    return [frames[int(index)] for index in indexes]
+    return frames
+
+
+def file_fingerprint(path: Path) -> str:
+    """Hash source content without loading a video or NPZ entirely into memory."""
+    digest = sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _sample_metadata(sample: ActivitySample, frames: int, interval: float) -> dict[str, Any]:
+    return {
+        "version": 2, "source": str(Path(sample.video_path).resolve()),
+        "source_sha256": file_fingerprint(Path(sample.video_path)),
+        "frames_per_sample": frames, "sampling_interval_seconds": interval,
+        "sampling_version": SAMPLING_VERSION, "crop_size": DEFAULT_CROP_SIZE,
+        "pose_preprocessing": "yolo11n-pose-box-relative-v1",
+        "label": sample.label_index, "split": sample.split,
+    }
+
+
+def _valid_sample_cache(path: Path, expected: dict[str, Any]) -> bool:
+    try:
+        with np.load(path, allow_pickle=False) as payload:
+            if json.loads(str(payload["metadata"])) != expected:
+                return False
+            count = expected["frames_per_sample"]
+            return (
+                payload["pose"].shape == (count, KEYPOINT_COUNT, 3)
+                and payload["crops"].shape == (count, DEFAULT_CROP_SIZE, DEFAULT_CROP_SIZE, 3)
+                and payload["pose"].dtype == np.float32
+                and payload["crops"].dtype == np.uint8
+                and bool(np.isfinite(payload["pose"]).all())
+                and int(payload["label"]) == expected["label"]
+                and str(payload["split"]) == expected["split"]
+                and str(payload["source"]) == expected["source"]
+            )
+    except (OSError, ValueError, KeyError, TypeError, EOFError, BadZipFile):
+        return False
+
+
+def validate_cached_samples(samples: Iterable[ActivitySample], metadata: dict[str, Any]) -> None:
+    """Reject incompatible arrays before building backbones or training heads."""
+    count = metadata["frames_per_sample"]
+    for sample in samples:
+        try:
+            with np.load(sample.cache_path, allow_pickle=False) as payload:
+                if payload["pose"].shape != (count, KEYPOINT_COUNT, 3) or payload["crops"].shape != (
+                    count, DEFAULT_CROP_SIZE, DEFAULT_CROP_SIZE, 3
+                ):
+                    raise ValueError("cache frame count or array shape does not match manifest")
+                if int(payload["label"]) != sample.label_index:
+                    raise ValueError("cache label does not match manifest")
+                interval = metadata.get("sampling_interval_seconds")
+                if interval is not None:
+                    cached = json.loads(str(payload["metadata"]))
+                    if (cached.get("sampling_interval_seconds") != interval
+                            or cached.get("sampling_version") != SAMPLING_VERSION):
+                        raise ValueError("cache sampling contract does not match manifest")
+        except (OSError, ValueError, KeyError, TypeError, EOFError, BadZipFile) as exc:
+            raise ValueError(f"Invalid activity cache {sample.cache_path}: {exc}. "
+                             "Run prepare_activity_data.py again.") from exc
 
 
 def cache_activity_samples(
@@ -105,13 +187,21 @@ def cache_activity_samples(
     frames_per_sample: int = DEFAULT_FRAMES_PER_SAMPLE,
     overwrite: bool = False,
     pose_analyzer: Any | None = None,
+    sampling_interval_seconds: float = DEFAULT_SAMPLING_INTERVAL_SECONDS,
 ) -> dict[str, int]:
     """Run YOLO pose once and cache normalized poses plus person crops."""
     sample_list = list(samples)
+    if frames_per_sample < 1:
+        raise ValueError("frames_per_sample must be positive")
+    interval = validate_sampling_interval(sampling_interval_seconds)
+    metadata_by_key = {
+        sample.key: _sample_metadata(sample, frames_per_sample, interval)
+        for sample in sample_list
+    }
     pending_samples = [
         sample
         for sample in sample_list
-        if overwrite or not Path(sample.cache_path).is_file()
+        if overwrite or not _valid_sample_cache(Path(sample.cache_path), metadata_by_key[sample.key])
     ]
     skipped = len(sample_list) - len(pending_samples)
     if not pending_samples:
@@ -128,7 +218,8 @@ def cache_activity_samples(
         temporary_path = cache_path.with_suffix(f"{cache_path.suffix}.partial")
         started = perf_counter()
         try:
-            frames = sample_video_frames(Path(sample.video_path), frames_per_sample)
+            frames = sample_video_frames(Path(sample.video_path), frames_per_sample,
+                                         sampling_interval_seconds=interval)
             reset = getattr(pose_analyzer, "reset_tracking", None)
             if callable(reset):
                 reset()
@@ -154,7 +245,8 @@ def cache_activity_samples(
                     crops=np.stack(crops),
                     label=np.int64(sample.label_index),
                     split=np.array(sample.split),
-                    source=np.array(sample.video_path),
+                    source=np.array(str(Path(sample.video_path).resolve())),
+                    metadata=np.array(json.dumps(metadata_by_key[sample.key], sort_keys=True)),
                     pose_detection_rate=np.float32(detected_count / len(frames)),
                     extraction_seconds=np.float64(perf_counter() - started),
                 )

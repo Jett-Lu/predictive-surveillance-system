@@ -412,6 +412,15 @@ python src/main.py --process-media
 
 Annotated files are written to the `output` directory.
 
+Video output names retain the source extension, so `clip.mov` becomes
+`clip.mov_annotated.mp4` and `clip.avi` becomes `clip.avi_annotated.mp4`.
+This prevents different input formats with the same base name from overwriting
+each other. Reprocessing the same input replaces its previous output atomically.
+
+Recorded sources use video timestamps for gesture windows and activity sampling,
+with a frame-rate fallback when the decoder does not provide usable timestamps.
+Live cameras and streams use monotonic elapsed time.
+
 To process one specific file:
 
 ```powershell
@@ -561,7 +570,8 @@ Run all tests:
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-The verified repository currently contains 93 passing tests.
+The test suite covers temporal state, model loading, preprocessing, media export,
+and event reporting. Run it in your installed environment to verify compatibility.
 
 Install the repository as an editable Python project:
 

@@ -8,12 +8,12 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any
 import json
-import math
 import os
 
 import cv2
 
 from config import AppConfig
+from camera import CaptureClock
 from detection import MonitoringProcessor
 
 
@@ -205,15 +205,15 @@ def _run_case(
     else:
         capture = cv2.VideoCapture(str(input_path))
         if not capture.isOpened():
+            capture.release()
             return ValidationResult(name, False, ("OpenCV could not open input",), None)
-        fps = capture.get(cv2.CAP_PROP_FPS)
-        fps = fps if math.isfinite(fps) and fps > 0 else 24.0
         try:
+            clock = CaptureClock(capture, recorded=True)
             while frames_processed < max_frames:
                 ok, frame = capture.read()
                 if not ok:
                     break
-                processor.process_frame(frame, timestamp=frames_processed / fps)
+                processor.process_frame(frame, timestamp=clock.timestamp())
                 frames_processed += 1
                 people_total, max_people = _collect_snapshots(
                     processor.last_snapshots,

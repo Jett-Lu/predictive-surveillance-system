@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pickle
+import warnings
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,6 +14,7 @@ import numpy as np
 
 from activity_recognition.labels import ACTIVITY_LABELS, LABEL_TO_INDEX
 from activity_recognition.preprocessing import KEYPOINT_COUNT, normalize_pose
+from activity_recognition.sampling import observation_gap_limit, validate_sampling_interval
 
 
 UNKNOWN_ACTIVITY = "unknown"
@@ -35,6 +37,9 @@ class _TrackActivityState:
     probability_history: deque[np.ndarray]
     last_inference_frame: int = -1
     prediction: ActivityPrediction | None = None
+    last_observation_timestamp: float | None = None
+    next_sample_timestamp: float | None = None
+    last_observation_pose: np.ndarray | None = None
 
 
 class LiveMLPActivityRecognizer:
@@ -62,6 +67,7 @@ class LiveMLPActivityRecognizer:
         self.confidence_threshold = confidence_threshold
         self.inference_interval = inference_interval
         self.smoothing_window = smoothing_window
+        self.sampling_interval_seconds: float | None = None
         self._track_states: dict[int, _TrackActivityState] = {}
         self._inference_latency_total_ms = 0.0
         self._inference_count = 0
@@ -136,6 +142,8 @@ class LiveMLPActivityRecognizer:
         box: tuple[int, int, int, int],
         frame_shape: tuple[int, ...],
         frame_number: int,
+        *,
+        timestamp: float | None = None,
     ) -> ActivityPrediction | None:
         started = perf_counter()
         state = self._track_states.setdefault(track_key, self._new_track_state())
@@ -143,8 +151,39 @@ class LiveMLPActivityRecognizer:
         if not np.isfinite(pose_features).all():
             pose_features = np.zeros_like(pose_features)
         valid_pose = bool(np.any(pose_features[:, 2] > 0.0))
-        state.pose_history.append(pose_features)
-        state.valid_history.append(valid_pose)
+        interval = getattr(self, "sampling_interval_seconds", None)
+        if interval is not None:
+            observation_time = perf_counter() if timestamp is None else float(timestamp)
+            if not np.isfinite(observation_time):
+                raise ValueError("Activity timestamp must be finite")
+            previous_time = state.last_observation_timestamp
+            if previous_time is not None and (
+                observation_time < previous_time
+                or observation_time - previous_time > observation_gap_limit(interval)
+            ):
+                state = self._new_track_state()
+                self._track_states[track_key] = state
+            if state.next_sample_timestamp is None:
+                state.next_sample_timestamp = observation_time
+            sampled = False
+            while state.next_sample_timestamp <= observation_time + 1e-8:
+                # Hold the most recent observation at each source-time grid point.
+                sampled_pose = (
+                    state.last_observation_pose
+                    if state.next_sample_timestamp < observation_time - 1e-8
+                    and state.last_observation_pose is not None else pose_features
+                )
+                state.pose_history.append(sampled_pose)
+                state.valid_history.append(bool(np.any(sampled_pose[:, 2] > 0)))
+                state.next_sample_timestamp += interval
+                sampled = True
+            state.last_observation_timestamp = observation_time
+            state.last_observation_pose = pose_features
+            if not sampled:
+                return state.prediction
+        else:
+            state.pose_history.append(pose_features)
+            state.valid_history.append(valid_pose)
 
         if len(state.pose_history) < self.sequence_length:
             return state.prediction
@@ -243,6 +282,20 @@ class LiveMLPActivityRecognizer:
                 "Activity sequence length does not match checkpoint: "
                 f"configured {self.sequence_length}, checkpoint "
                 f"{checkpoint_sequence_length}"
+            )
+        if "sampling_interval_seconds" in checkpoint:
+            try:
+                self.sampling_interval_seconds = validate_sampling_interval(
+                    checkpoint["sampling_interval_seconds"]
+                )
+            except (TypeError, ValueError) as exc:
+                raise ActivityModelError(f"Invalid checkpoint sampling interval: {exc}") from exc
+        else:
+            warnings.warn(
+                "Legacy activity checkpoint has no source-time sampling metadata; "
+                "using adjacent observations. Retrain with new activity caches for "
+                "consistent offline/live timing.",
+                UserWarning, stacklevel=2,
             )
         expected_input_dim = self.sequence_length * KEYPOINT_COUNT * 3
         if checkpoint.get("input_dim") != expected_input_dim:
