@@ -10,12 +10,11 @@ from typing import Any
 import cv2
 
 from camera import CaptureClock
-from config import AppConfig
+from config import DEFAULT_CONFIG, AppConfig
 from logging_setup import get_logger
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_INPUT_DIR = PROJECT_ROOT / "input"
-DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "output"
+DEFAULT_INPUT_DIR = DEFAULT_CONFIG.input_dir
+DEFAULT_OUTPUT_DIR = DEFAULT_CONFIG.output_dir
 IMAGE_EXTENSIONS = frozenset({".bmp", ".jpeg", ".jpg", ".png", ".webp"})
 VIDEO_EXTENSIONS = frozenset({".avi", ".m4v", ".mkv", ".mov", ".mp4"})
 SUPPORTED_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS

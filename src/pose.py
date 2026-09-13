@@ -12,7 +12,6 @@ from config import DEFAULT_CONFIG, AppConfig
 from model_manager import ensure_model, pose_model_spec
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MODEL_PATH = DEFAULT_CONFIG.pose_model_path
 MIN_KEYPOINT_SCORE = 0.3
 DEFAULT_SKELETON_COLOR = (0, 255, 0)

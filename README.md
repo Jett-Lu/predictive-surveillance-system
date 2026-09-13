@@ -621,8 +621,34 @@ python src/main.py --doctor --no-model-downloads
 ```
 
 The MediaPipe face detector model at
-`data/blaze_face_short_range.tflite` is stored in the repository because it is
-loaded directly by the expression-analysis component.
+`src/monitoring_assets/blaze_face_short_range.tflite` is included in source
+and wheel distributions and loaded as a read-only package asset.
+
+### Standalone wheel installation
+
+With Python 3.11 or 3.12, build and install the wheel:
+
+```powershell
+python -m pip install build
+python -m build
+python -m pip install dist/integrated_monitoring_poc-0.2.1-py3-none-any.whl
+integrated-monitoring --doctor --prepare-models
+integrated-monitoring --doctor --no-model-downloads
+integrated-monitoring --detect
+```
+
+The wheel can be copied to another machine and installed there without the
+repository. Installation still requires the Python dependencies; first model
+preparation requires network access. In a wheel installation, downloaded
+models, enrollments, logs and menu media folders default to
+`~/.integrated-monitoring-poc`. Set `MONITOR_HOME` before launch to use another
+writable directory. Source runs retain the checkout root by default.
+Explicit CLI media paths remain relative to the working directory.
+`python -m main` also works after installation.
+
+To verify the wheel outside the checkout with the currently installed
+dependencies, run `python scripts/verify_wheel.py`. This creates a temporary
+installation, checks the launcher and paths, and loads the bundled face model.
 
 Other downloaded model files are excluded from version control.
 

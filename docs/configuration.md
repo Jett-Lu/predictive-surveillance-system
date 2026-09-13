@@ -1,10 +1,11 @@
 # Runtime configuration
 
-Run from a source checkout using the README setup instructions. The current
-wheel build does not include the bundled MediaPipe `.tflite` asset and is not
-a supported standalone deployment. Runtime paths also assume a writable
-checkout. Do not install the wheel into a protected system directory and
-expect it to be operational.
+Run from a source checkout or install the wheel using the README instructions.
+The wheel includes the MediaPipe face detector and the `integrated-monitoring`
+launcher. Installed runtime data defaults to `~/.integrated-monitoring-poc`;
+source runs default to the checkout root. Set `MONITOR_HOME` to override this
+root (relative values resolve from the working directory). Read-only bundled
+assets stay in the installed package; runtime data does not go in site-packages.
 
 Set these environment variables before starting Python. Unset or malformed
 values use defaults. Numeric environment values are clamped to bounds; CLI
@@ -13,6 +14,7 @@ true/false, yes/no and on/off. CLI overrides take precedence.
 
 | Variable | Default | Type or bounds |
 | --- | --- | --- |
+| `MONITOR_HOME` | user data directory for wheels; checkout for source runs | Writable runtime root |
 | `MONITOR_ACTIVITY_CHECKPOINT` | `PROJECT_ROOT / 'data' / 'activity_models' / 'mlp.pt'` | path |
 | `MONITOR_ACTIVITY_CONFIDENCE` | `0.5` | maximum=1.0 |
 | `MONITOR_ACTIVITY_INTERVAL` | `5` | int |
@@ -45,14 +47,14 @@ true/false, yes/no and on/off. CLI overrides take precedence.
 
 `MONITOR_ACTIVITY_MODEL` accepts `none` or `mlp`. Logging accepts DEBUG, INFO,
 WARNING, ERROR, CRITICAL and NOTSET through the environment. Relative activity
-checkpoint paths resolve under the checkout root. Defaults for data,
-enrollments and log/event directories are also under the checkout root.
+checkpoint paths resolve under the runtime root. Defaults for data,
+enrollments and log/event directories are also under the runtime root.
 Explicit CLI input/output/manifest/report paths resolve from the working directory.
 
 Model preparation needs outbound HTTPS and writable data/log directories.
 Expression initialization copies the verified classifier into the dependency's
 standard `~/.emotiefflib` cache, which must also be writable. Other library
-caches use `.tmp` under the checkout. Run `python src/main.py --doctor
+caches use `.tmp` under the runtime root. Run `integrated-monitoring --doctor
 --prepare-models`, then verify offline with `--doctor --no-model-downloads`.
 
 `--no-model-downloads` only controls this application's model provisioning;

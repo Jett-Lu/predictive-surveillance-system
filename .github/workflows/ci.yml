@@ -39,3 +39,5 @@ jobs:
         run: python -m pyright src scripts
       - name: Build distributions
         run: python -m build
+      - name: Verify wheel installation outside checkout
+        run: python scripts/verify_wheel.py

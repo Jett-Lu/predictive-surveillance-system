@@ -11,11 +11,10 @@ import shutil
 import cv2
 
 from camera import open_capture, prompt_camera_source
-from config import AppConfig
+from config import DEFAULT_CONFIG, AppConfig
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-ENROLLMENTS_DIR = PROJECT_ROOT / "enrollments"
+ENROLLMENTS_DIR = DEFAULT_CONFIG.enrollments_dir
 PAGE_SIZE = 5
 INVALID_LABEL_CHARS = set('<>:"/\\|?*')
 MAX_LABEL_LENGTH = 80

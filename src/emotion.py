@@ -6,7 +6,9 @@ import os
 from pathlib import Path
 import shutil
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+from config import DEFAULT_CONFIG
+
+PROJECT_ROOT = DEFAULT_CONFIG.project_root
 TMP_DIR = PROJECT_ROOT / ".tmp"
 (TMP_DIR / "matplotlib").mkdir(parents=True, exist_ok=True)
 os.environ.setdefault("MPLCONFIGDIR", str(TMP_DIR / "matplotlib"))
@@ -18,11 +20,10 @@ from emotiefflib.facial_analysis import EmotiEffLibRecognizer
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
-from config import DEFAULT_CONFIG
 from model_manager import EMOTION_MODEL_SHA256, file_sha256
 
 
-DEFAULT_FACE_MODEL_PATH = PROJECT_ROOT / "data" / "blaze_face_short_range.tflite"
+DEFAULT_FACE_MODEL_PATH = DEFAULT_CONFIG.emotion_face_model_path
 DEFAULT_CLASSIFIER_MODEL_PATH = DEFAULT_CONFIG.emotion_classifier_model_path
 FACE_PADDING_RATIO = 0.12
 

@@ -1,7 +1,7 @@
 # Final production audit — 2026-09-13
 
 **Verdict: NOT READY for production deployment.** The source-checkout POC
-passes the checks below, but deployment packaging, operational validation and
+passes the checks below, but operational validation and
 data controls remain unresolved. This is not a claim that the demonstrated
 review levels reliably identify real-world risk.
 
@@ -60,10 +60,14 @@ CI changes have not been executed on hosted Linux/macOS runners in this audit.
 
 ## Remaining blockers and manual verification
 
-1. **Standalone packaging:** wheel lacks the bundled MediaPipe `.tflite` asset;
-   runtime paths also assume a writable source checkout. Build success does
-   not mean the wheel is deployable. Decide the supported installation and
-   data-directory contract before implementing a packaged deployment.
+1. **Standalone packaging — resolved in follow-up:** the wheel now includes
+   the MediaPipe detector, a launcher, and user-writable runtime defaults with
+   `MONITOR_HOME`. Installed outside the checkout in a temporary environment;
+   launcher, import origins, runtime paths and real detector loading passed.
+   Dependencies were reused from the tested environment. Source and wheel
+   builds, 127 tests, lint/format and type checks are covered by the follow-up;
+   fresh dependency resolution and hosted cross-platform execution remain
+   deployment checks. Evidence: `.tmp/packaging-install.log`.
 2. **Dependency network behavior:** MediaPipe attempted a Clearcut upload
    during real export; it failed under network restrictions. The application
    model-download switch does not enforce offline operation. Assess the

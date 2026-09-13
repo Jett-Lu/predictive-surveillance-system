@@ -7,8 +7,20 @@ from pathlib import Path
 import math
 import os
 
+from monitoring_assets import FACE_DETECTOR_PATH
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+def _runtime_root() -> Path:
+    override = os.environ.get("MONITOR_HOME", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    module_dir = Path(__file__).resolve().parent
+    if module_dir.name == "src" and (module_dir.parent / "pyproject.toml").is_file():
+        return module_dir.parent
+    return Path.home() / ".integrated-monitoring-poc"
+
+
+PROJECT_ROOT = _runtime_root()
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -57,12 +69,12 @@ def _env_choice(name: str, default: str, choices: set[str]) -> str:
     return value if value in choices else default
 
 
-def _env_path(name: str, default: Path) -> Path:
+def _env_path(name: str, default: Path, root: Path = PROJECT_ROOT) -> Path:
     value = os.environ.get(name)
     if value is None:
         return default
     path = Path(value).expanduser()
-    return path if path.is_absolute() else PROJECT_ROOT / path
+    return path if path.is_absolute() else root / path
 
 
 @dataclass(frozen=True)
@@ -125,7 +137,7 @@ class AppConfig:
 
     @property
     def emotion_face_model_path(self) -> Path:
-        return self.data_dir / "blaze_face_short_range.tflite"
+        return FACE_DETECTOR_PATH
 
     @property
     def emotion_classifier_model_path(self) -> Path:
@@ -134,7 +146,15 @@ class AppConfig:
     @classmethod
     def from_env(cls) -> "AppConfig":
         """Create configuration with safe environment-variable overrides."""
+        root = _runtime_root()
         return cls(
+            project_root=root,
+            data_dir=root / "data",
+            enrollments_dir=root / "enrollments",
+            input_dir=root / "input",
+            output_dir=root / "output",
+            log_dir=root / "output" / "logs",
+            event_dir=root / "output" / "events",
             allow_model_downloads=_env_bool("MONITOR_ALLOW_MODEL_DOWNLOADS", True),
             model_download_timeout_seconds=_env_float(
                 "MONITOR_MODEL_DOWNLOAD_TIMEOUT", 60.0, minimum=5.0
@@ -171,7 +191,8 @@ class AppConfig:
             ),
             activity_checkpoint_path=_env_path(
                 "MONITOR_ACTIVITY_CHECKPOINT",
-                PROJECT_ROOT / "data" / "activity_models" / "mlp.pt",
+                root / "data" / "activity_models" / "mlp.pt",
+                root=root,
             ),
             activity_sequence_length=_env_int(
                 "MONITOR_ACTIVITY_SEQUENCE_LENGTH",
