@@ -77,6 +77,8 @@ class IdentityConsensus:
         match: IdentityMatch | None,
         frame_number: int,
     ) -> IdentityDecision:
+        # Expire cached evidence before a new observation can renew it.
+        self.current(frame_number)
         accepted_name = match.name if match is not None and match.matched else None
         accepted_score = match.score if accepted_name is not None else None
         if (
@@ -101,12 +103,11 @@ class IdentityConsensus:
                 for name, score in self._observations
                 if name == candidate_name and score is not None
             ]
-            blocked_old_majority = (
-                self._suspended
-                and candidate_name == self._confirmed_name
-                and accepted_name != self._confirmed_name
-            )
-            if candidate_count >= self.required_matches and not blocked_old_majority:
+            # Only fresh support for the candidate can renew confirmation.
+            if (
+                candidate_count >= self.required_matches
+                and accepted_name == candidate_name
+            ):
                 self._confirmed_name = candidate_name
                 self._confirmed_score = (
                     sum(candidate_scores) / len(candidate_scores)

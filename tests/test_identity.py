@@ -84,6 +84,50 @@ class IdentityConsensusTest(unittest.TestCase):
         self.assertFalse(conflicted.confirmed)
         self.assertEqual(conflicted.name, "Unknown")
 
+    def test_failed_observations_do_not_extend_identity_expiry(self) -> None:
+        for failed_match in (None, IdentityMatch("Unknown", 0.20, False)):
+            with self.subTest(failed_match=failed_match):
+                consensus = IdentityConsensus(ttl_frames=5)
+                match = IdentityMatch("Alex", 0.70, True)
+                for frame in (0, 1, 2):
+                    consensus.observe(match, frame)
+
+                self.assertTrue(consensus.observe(failed_match, 3).confirmed)
+                self.assertTrue(consensus.current(7).confirmed)
+                self.assertFalse(consensus.current(8).confirmed)
+
+    def test_failed_observation_after_expiry_does_not_revive_identity(self) -> None:
+        consensus = IdentityConsensus(ttl_frames=5)
+        match = IdentityMatch("Alex", 0.70, True)
+        for frame in (0, 1, 2):
+            consensus.observe(match, frame)
+
+        decision = consensus.observe(None, 10)
+
+        self.assertFalse(decision.confirmed)
+        self.assertEqual(decision.name, "Unknown")
+        self.assertIsNone(decision.score)
+
+    def test_match_after_expiry_requires_fresh_consensus(self) -> None:
+        consensus = IdentityConsensus(ttl_frames=5)
+        match = IdentityMatch("Alex", 0.70, True)
+        for frame in (0, 1, 2):
+            consensus.observe(match, frame)
+
+        self.assertFalse(consensus.observe(match, 10).confirmed)
+        self.assertFalse(consensus.observe(match, 11).confirmed)
+        self.assertTrue(consensus.observe(match, 12).confirmed)
+
+    def test_fresh_matching_observation_renews_unexpired_identity(self) -> None:
+        consensus = IdentityConsensus(ttl_frames=5)
+        match = IdentityMatch("Alex", 0.70, True)
+        for frame in (0, 1, 2):
+            consensus.observe(match, frame)
+
+        self.assertTrue(consensus.observe(match, 7).confirmed)
+        self.assertTrue(consensus.current(12).confirmed)
+        self.assertFalse(consensus.current(13).confirmed)
+
 
 if __name__ == "__main__":
     unittest.main()
