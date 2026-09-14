@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 
 from config import DEFAULT_CONFIG
+from dependency_privacy import disable_onnx_telemetry
 
 PROJECT_ROOT = DEFAULT_CONFIG.project_root
 TMP_DIR = PROJECT_ROOT / ".tmp"
@@ -103,6 +104,7 @@ class FaceEmotionAnalyzer:
             )
 
         _sync_emotiefflib_cache(classifier_model_path)
+        disable_onnx_telemetry()
         self.recognizer = EmotiEffLibRecognizer(
             engine="onnx",
             model_name="enet_b2_8",

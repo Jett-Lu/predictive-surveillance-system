@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 
 from config import DEFAULT_CONFIG, AppConfig
+from dependency_privacy import disable_ultralytics_telemetry
 from model_manager import ensure_model, pose_model_spec
 
 
@@ -74,6 +75,7 @@ class PoseAnalyzer:
         model_path: Path = DEFAULT_MODEL_PATH,
         config: AppConfig = DEFAULT_CONFIG,
     ) -> None:
+        disable_ultralytics_telemetry()
         from ultralytics import YOLO
 
         if model_path == config.pose_model_path:
