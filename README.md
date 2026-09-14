@@ -173,7 +173,8 @@ Each tracked person has an independent:
 * review level
 * event history
 
-One person's activity does not affect the state assigned to another person.
+Histories are isolated by tracker ID. ID switches during crossings or occlusion
+can still associate history with the wrong person.
 
 ## Human Activity Recognition
 
@@ -217,6 +218,9 @@ video features.
 ## Activity Recognition Results
 
 The models were evaluated using 120 held-out HMDB51 test videos.
+These are historical benchmark results, not a rerun against the current
+dependency versions and source-time preprocessing. Reproduce the benchmark
+before using these figures to assess the current release.
 
 | Model       | Accuracy | Macro F1 | Head Training Time | CPU Inference Latency |
 | ----------- | -------: | -------: | -----------------: | --------------------: |
@@ -300,12 +304,14 @@ computer-vision-predictive-surveillance-system/
 │   └── workflows/
 ├── data/
 ├── docs/
-│   └── images/
+│   ├── configuration.md
+│   └── data-governance.md
 ├── input/
 ├── output/
 ├── scripts/
 ├── src/
-│   └── activity_recognition/
+│   ├── activity_recognition/
+│   └── monitoring_assets/
 ├── tests/
 ├── validation/
 ├── pyproject.toml
@@ -320,8 +326,8 @@ computer-vision-predictive-surveillance-system/
 * `src/` contains the main application and computer vision components.
 * `src/activity_recognition/` contains the activity dataset, preprocessing,
   models, training, evaluation, metrics, and optional live MLP integration.
-* `scripts/` contains the activity data preparation, training, and evaluation
-  entry points.
+* `scripts/` contains activity preparation, training, evaluation, and isolated
+  wheel-installation verification entry points.
 * `tests/` contains the automated unit and integration tests.
 * `validation/` contains the scenario-based validation framework.
 * `docs/` contains technical documentation and experiment results.
@@ -334,7 +340,7 @@ outputs are excluded from version control.
 
 ## Installation
 
-Python 3.11 or 3.12 is recommended.
+Python 3.11 or 3.12 is required by the package metadata.
 
 Create a virtual environment:
 
@@ -368,8 +374,10 @@ with:
 
 ### Exact Tested Environment
 
-`requirements-tested.txt` records the exact core package versions used during
-the July 2026 Windows verification.
+`requirements-tested.txt` is a historical July 2026 Windows snapshot of
+top-level package versions, with the current Torch security floor retained.
+It is not a complete dependency lockfile or the latest audited environment.
+Use `requirements.txt` for normal installation.
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -r requirements-tested.txt
@@ -386,6 +394,15 @@ using the MLP activity checkpoint:
 
 ## Running the Application
 
+Commands below using plain `python` assume the virtual environment is active:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+On macOS/Linux use `source .venv/bin/activate`. Alternatively, use the explicit
+virtual-environment Python path shown in Installation for every command.
+
 Open the application menu:
 
 ```powershell
@@ -397,6 +414,7 @@ The menu provides options for:
 * enrolling identities
 * starting real-time processing
 * deleting existing enrollments
+* processing recorded photos and videos
 
 To start processing directly:
 
@@ -418,6 +436,8 @@ python src/main.py --process-media
 ```
 
 Annotated files are written to the `output` directory.
+Video exports do not preserve the source audio. Failed direct CLI processing
+returns a nonzero exit status; the interactive menu retains best-effort export.
 
 Video output names retain the source extension, so `clip.mov` becomes
 `clip.mov_annotated.mp4` and `clip.avi` becomes `clip.avi_annotated.mp4`.
@@ -456,7 +476,8 @@ Newly prepared activity caches and checkpoints use a shared source-time sampling
 interval. See [activity preprocessing and checkpoint compatibility](docs/activity_preprocessing.md)
 for rebuild commands and legacy checkpoint behavior.
 
-Train the activity models first:
+Prepare the dataset/cache using the Activity Benchmark instructions below,
+then train the activity models:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\train_activity_models.py
@@ -572,7 +593,7 @@ Check dependency consistency:
 Compile the source and tests:
 
 ```powershell
-.\.venv\Scripts\python.exe -m compileall -q src tests
+.\.venv\Scripts\python.exe -m compileall -q src scripts tests
 ```
 
 Run all tests:
@@ -584,11 +605,16 @@ Run all tests:
 The test suite covers temporal state, model loading, preprocessing, media export,
 and event reporting. Run it in your installed environment to verify compatibility.
 
-CI also checks Python lint rules configured in `pyproject.toml`. To run them locally:
+CI also checks lint, formatting, types, distribution builds and installation
+outside the checkout. With both dependency sets installed, run these locally:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install ruff==0.16.7
+.\.venv\Scripts\python.exe -m pip install ruff==0.16.7 pyright==1.1.414 build
 .\.venv\Scripts\python.exe -m ruff check --config pyproject.toml src scripts tests
+.\.venv\Scripts\python.exe -m ruff format --check --config pyproject.toml src scripts tests
+.\.venv\Scripts\python.exe -m pyright src scripts
+.\.venv\Scripts\python.exe -m build
+.\.venv\Scripts\python.exe scripts/verify_wheel.py
 ```
 
 Install the repository as an editable Python project:
@@ -687,16 +713,54 @@ State is keyed by the persistent tracking ID. This isolates histories while
 tracker IDs remain correct; tracker ID switches during crossings or occlusion
 can still associate history with the wrong person and require validation.
 
-### Offline Reproducibility
+### Local Model Readiness and Telemetry
 
-The project supports offline verification after model preparation through:
+After model preparation, verify local model readiness without downloading:
 
 ```powershell
 python src/main.py --doctor --no-model-downloads
 ```
 
+This flag does not enforce network isolation. Ultralytics analytics and ONNX
+Runtime telemetry are disabled before model initialization. MediaPipe's
+published binary still has no supported telemetry opt-out; controlling its
+outbound traffic or using a telemetry-free source build remains unresolved.
+See [runtime configuration](docs/configuration.md) for details and upstream references.
+
 Datasets, generated checkpoints, feature caches, reports, and output media are
 kept outside Git version control.
+
+## Data Access and Retention
+
+Run the application and maintenance commands under the intended operating-system
+account. New managed data directories are private. To restrict existing output,
+enrollment, event and log directories, stop monitoring and run:
+
+```powershell
+python src/main.py --secure-data
+```
+
+Windows grants access to the current account and SYSTEM. POSIX migration uses
+0700 directories and 0600 files. These controls do not provide application
+login, encryption, or separation between people sharing the same account.
+
+| Managed data | Default retention | Environment override |
+| --- | --- | --- |
+| Annotated media | 30 days | `MONITOR_RECORDING_RETENTION_DAYS` |
+| Enrollment images | 365 days | `MONITOR_IDENTITY_RETENTION_DAYS` |
+| Events and application logs | 30 days | `MONITOR_LOG_RETENTION_DAYS` |
+
+Retention uses file modification time and requires explicit maintenance:
+
+```powershell
+python src/main.py --retention
+# After reviewing the preview, with monitoring stopped:
+python src/main.py --retention --apply-retention
+```
+
+No background deletion is enabled. Original inputs, backups and custom export
+directories outside the managed output root are excluded. See the
+[data access and retention policy](docs/data-governance.md) for scope and safeguards.
 
 ## Limitations
 
