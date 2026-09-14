@@ -2,11 +2,16 @@
 
 import os
 
+from config import DEFAULT_CONFIG
+
 
 def disable_ultralytics_telemetry() -> None:
     # Set before import: suppress its connectivity check and Sentry startup.
     # Application-managed, hash-verified downloads remain available.
     os.environ["YOLO_OFFLINE"] = "true"
+    cache = DEFAULT_CONFIG.project_root / ".tmp" / "ultralytics"
+    cache.mkdir(parents=True, exist_ok=True)
+    os.environ.setdefault("YOLO_CONFIG_DIR", str(cache))
     from ultralytics import settings
     from ultralytics.utils.events import events
 

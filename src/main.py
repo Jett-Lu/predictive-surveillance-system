@@ -28,6 +28,21 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Integrated live monitoring demo.")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
+        "--secure-data",
+        action="store_true",
+        help="Restrict managed data directories to the current OS account.",
+    )
+    mode.add_argument(
+        "--retention",
+        action="store_true",
+        help="Preview expired managed data. Stop monitoring before maintenance.",
+    )
+    parser.add_argument(
+        "--apply-retention",
+        action="store_true",
+        help="Delete expired files; requires --retention. Default is preview only.",
+    )
+    mode.add_argument(
         "--detect",
         action="store_true",
         help="Start live monitoring directly instead of opening the menu.",
@@ -122,12 +137,31 @@ def parse_args() -> argparse.Namespace:
         type=_positive_int,
         help="Number of activity probability vectors to average.",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.apply_retention and not args.retention:
+        parser.error("--apply-retention requires --retention")
+    return args
 
 
 def main() -> None:
     args = parse_args()
     config = AppConfig.from_env()
+    if args.secure_data or args.retention:
+        from data_policy import apply_retention, plan_retention, retention_rules, secure_data
+
+        if args.secure_data:
+            secure_data(config)
+            print("Managed output, log, event and enrollment directories restricted.")
+        else:
+            plan = plan_retention(retention_rules(config))
+            for item in plan:
+                print(f"{item.category}: {item.path}")
+            print(f"{len(plan)} expired files; {sum(item.size for item in plan)} bytes.")
+            if args.apply_retention:
+                print(f"Deleted {apply_retention(plan)} expired files.")
+            else:
+                print("Preview only. No data deleted. Use --retention --apply-retention to apply.")
+        return
     config = replace(
         config,
         allow_model_downloads=(False if args.no_model_downloads else config.allow_model_downloads),

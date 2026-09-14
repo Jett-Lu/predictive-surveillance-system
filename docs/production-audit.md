@@ -82,9 +82,14 @@ CI changes have not been executed on hosted Linux/macOS runners in this audit.
    capture lacks an application-level reconnect policy. Concurrent exporters
    or cache writers sharing destination paths are unsupported. Test disk-full
    and permission failures on the target deployment filesystem.
-5. **Data controls:** enrollment images, names, event logs and annotated media
-   need deployment-specific access, retention and protection rules. The local
-   POC has no application authentication or encryption layer.
+5. **Data controls — implemented locally:** private directory creation,
+   explicit existing-data permission migration, and configurable preview-first
+   retention maintenance now cover managed exports, enrollment images, events
+   and application logs. Current managed directories were restricted under
+   the operator's Windows account; no existing data was deleted. See
+   [data governance](data-governance.md) for scope and commands. Scheduling,
+   backups, external input media and deployment account policies remain an
+   operator responsibility; there is no application authentication/encryption.
 6. **Coverage/platform gaps:** automated tests do not establish performance,
    fairness or safety; optional activity training, deployed checkpoints and
    hardware paths need representative integration tests. Run hosted CI and

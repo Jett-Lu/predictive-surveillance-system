@@ -12,6 +12,7 @@ import cv2
 from camera import CaptureClock
 from config import DEFAULT_CONFIG, AppConfig
 from logging_setup import get_logger
+from data_policy import ensure_private_directory
 
 DEFAULT_INPUT_DIR = DEFAULT_CONFIG.input_dir
 DEFAULT_OUTPUT_DIR = DEFAULT_CONFIG.output_dir
@@ -63,7 +64,7 @@ def export_media(
     """Process supported media inputs and return the successfully generated files."""
     input_path = input_path.resolve()
     output_dir = output_dir.resolve()
-    output_dir.mkdir(parents=True, exist_ok=True)
+    ensure_private_directory(output_dir)
     media_files = discover_media_files(input_path)
     if not media_files:
         if fail_on_error:

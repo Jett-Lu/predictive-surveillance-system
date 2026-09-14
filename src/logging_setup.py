@@ -6,6 +6,8 @@ import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
+from data_policy import ensure_private_directory
+
 
 LOGGER_NAME = "monitoring"
 
@@ -30,7 +32,7 @@ def configure_logging(level: str = "INFO", log_dir: Path | None = None) -> loggi
     logger.addHandler(console)
 
     if log_dir is not None:
-        log_dir.mkdir(parents=True, exist_ok=True)
+        ensure_private_directory(log_dir)
         file_handler = RotatingFileHandler(
             log_dir / "monitoring.log",
             maxBytes=2_000_000,

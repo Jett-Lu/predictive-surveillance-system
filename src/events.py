@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from logging_setup import get_logger
+from data_policy import ensure_private_directory
 
 logger = get_logger("events")
 
@@ -55,7 +56,7 @@ class EventRecorder:
         self._recent_messages: deque[str] = deque(maxlen=max(1, recent_limit))
         self._context: dict[str, Any] = {}
         if output_path is not None:
-            output_path.parent.mkdir(parents=True, exist_ok=True)
+            ensure_private_directory(output_path.parent)
             self._stream = output_path.open("a", encoding="utf-8")
             logger.info("Event report: %s", output_path)
 

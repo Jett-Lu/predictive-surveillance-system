@@ -122,6 +122,9 @@ class AppConfig:
     event_logging_enabled: bool = True
     log_level: str = "INFO"
     demo_high_review_names: str = ""
+    recording_retention_days: int = 30
+    identity_retention_days: int = 365
+    log_retention_days: int = 30
 
     @property
     def face_detector_model_path(self) -> Path:
@@ -148,6 +151,9 @@ class AppConfig:
         """Create configuration with safe environment-variable overrides."""
         root = _runtime_root()
         return cls(
+            recording_retention_days=_env_int("MONITOR_RECORDING_RETENTION_DAYS", 30),
+            identity_retention_days=_env_int("MONITOR_IDENTITY_RETENTION_DAYS", 365),
+            log_retention_days=_env_int("MONITOR_LOG_RETENTION_DAYS", 30),
             project_root=root,
             data_dir=root / "data",
             enrollments_dir=root / "enrollments",

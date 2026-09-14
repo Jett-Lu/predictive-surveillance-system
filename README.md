@@ -10,6 +10,8 @@ single processing pipeline.
 
 See [runtime configuration](docs/configuration.md) for environment variables,
 filesystem requirements and operational limits, and the
+[data access and retention policy](docs/data-governance.md) for protecting
+recordings and identity data. See the
 [final production audit](docs/production-audit.md) for verification results
 and remaining release blockers.
 

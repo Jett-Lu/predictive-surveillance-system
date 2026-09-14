@@ -12,6 +12,7 @@ import cv2
 
 from camera import open_capture, prompt_camera_source
 from config import DEFAULT_CONFIG, AppConfig
+from data_policy import ensure_private_directory
 
 
 ENROLLMENTS_DIR = DEFAULT_CONFIG.enrollments_dir
@@ -85,7 +86,7 @@ class DeleteSession:
 
 
 def enrollment_folders(enrollments_dir: Path = ENROLLMENTS_DIR) -> list[str]:
-    enrollments_dir.mkdir(parents=True, exist_ok=True)
+    ensure_private_directory(enrollments_dir)
     return sorted(path.name for path in enrollments_dir.iterdir() if path.is_dir())
 
 
@@ -305,7 +306,7 @@ def handle_enrollment_state(
         session.label = label
         session.folder = enrollments_dir / label
         if not session.folder.exists():
-            session.folder.mkdir(parents=True)
+            ensure_private_directory(session.folder)
             return MenuState.ENROLL_GET_COUNT, ""
         return MenuState.ENROLL_DUPLICATE, ""
 
@@ -318,7 +319,7 @@ def handle_enrollment_state(
                 _remove_enrollment_folder(session.folder, enrollments_dir)
             except (OSError, ValueError) as exc:
                 return state, f"Could not safely overwrite enrollment: {exc}"
-            session.folder.mkdir(parents=True, exist_ok=True)
+            ensure_private_directory(session.folder)
         elif normalized_command != "b":
             return state, "Invalid command. Choose 'a' or 'b'."
         return MenuState.ENROLL_GET_COUNT, ""

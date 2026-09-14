@@ -32,6 +32,7 @@ py-modules = [
     "config",
     "detection",
     "dependency_privacy",
+    "data_policy",
     "diagnostics",
     "emotion",
     "enrollment",
